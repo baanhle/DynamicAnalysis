@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HSLM Dynamic Analysis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <!-- Background orbs -->
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
+
+  <div class="app-shell">
+    <!-- ── HEADER ── -->
+    <header class="app-header glass">
+      <div class="header-brand">
+        <span class="brand-icon">⚙</span>
+        <span class="brand-title">HSLM Dynamic Analysis</span>
+        <span class="brand-sub">Train-Track-Bridge-2D · Eurocode EN 1991-2</span>
+      </div>
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="tab-inputs">
+          <span class="tab-icon">①</span> Core Inputs
+        </button>
+        <button class="tab-btn" data-tab="tab-vibration">
+          <span class="tab-icon">②</span> Free Vibration
+        </button>
+        <button class="tab-btn" data-tab="tab-sweep">
+          <span class="tab-icon">③</span> Dynamic Sweep
+        </button>
+      </nav>
+    </header>
+
+    <!-- ── MAIN ── -->
+    <main class="tab-content">
+
+      <!-- ===================== WINDOW 1: CORE INPUTS ===================== -->
+      <section id="tab-inputs" class="tab-pane active">
+        <h2 class="section-title">Core Inputs <span class="title-sub">— Cấu hình Mô hình</span></h2>
+
+        <div class="card-grid two-col">
+
+          <!-- Card 1: Bridge & Track -->
+          <div class="glass-card">
+            <div class="card-header">
+              <span class="card-icon">🌉</span>
+              <span>Bridge Parameters</span>
+            </div>
+
+            <div class="field-row" style="margin-bottom: 1.5rem; background: rgba(255,255,255,0.05); padding: 0.8rem; border-radius: 8px; border: 1px dashed var(--glass-border);">
+              <label class="field-label" style="margin:0; flex: 1;">Loại dầm điển hình (Typical Section)
+                <select id="beam_type" class="field-input" style="margin-top: 0.4rem; border-color: var(--accent-2); color: var(--accent-2); font-weight: 600;">
+                  <option value="custom">-- Tùy chỉnh (Custom) --</option>
+                  <!-- Options loaded from CSV -->
+                </select>
+              </label>
+            </div>
+            
+            <div class="field-row">
+              <label class="field-label">Nhịp L (m)
+                <input id="L" type="number" class="field-input" value="50" step="0.1" />
+              </label>
+              <label class="field-label">Mô đun E (N/m²)
+                <input id="E" type="number" class="field-input" value="3.5e10" step="1e8" />
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label class="field-label">Ixx (m⁴)
+                <input id="Ixx" type="number" class="field-input" value="51.3" step="0.1" />
+              </label>
+              <label class="field-label">Iyy (m⁴)
+                <input id="Iyy" type="number" class="field-input" value="25.0" step="0.1" />
+              </label>
+              <label class="field-label">Ixy (m⁴)
+                <input id="Ixy" type="number" class="field-input" value="0.0" step="0.01" />
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label class="field-label">G (N/m²)
+                <input id="G" type="number" class="field-input" value="1.35e10" step="1e8" />
+              </label>
+              <label class="field-label">J torsion (m⁴)
+                <input id="J" type="number" class="field-input" value="5.0" step="0.1" />
+              </label>
+              <label class="field-label">I_theta (kg·m)
+                <input id="I_theta" type="number" class="field-input" value="80000" step="1000" />
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label class="field-label">Khối lượng ρ (kg/m)
+                <input id="rho" type="number" class="field-input" value="69000" step="100" />
+              </label>
+              <label class="field-label">I dọc đứng (legacy, dynamic sweep)
+                <input id="I" type="number" class="field-input" value="51.3" step="0.1" />
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label class="field-label">Tỉ lệ cản (%)
+                <input id="damping_pct" type="number" class="field-input" value="2.0" step="0.1" min="0" max="20" />
+              </label>
+              <label class="field-label">Phần tử / khoảng
+                <input id="ele_per_spacing" type="number" class="field-input" value="2" step="1" min="1" max="10" />
+              </label>
+            </div>
+
+            <div class="divider" style="grid-column: 1 / -1; margin: 1.5rem 0 0.5rem 0; border-top: 1px solid var(--glass-border); padding-top: 1rem;">
+              <h3 style="font-size: 0.85rem; color: var(--accent-2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.8rem;">Track Parameters</h3>
+            </div>
+
+            <div class="field-row">
+              <label class="field-label">Kiểu đường (Track Type)
+                <select id="track_type" class="field-input">
+                  <option value="with_ballast">Có đá ba-lát (With Ballast)</option>
+                  <option value="no_ballast">Không đá ba-lát (Ballastless)</option>
+                </select>
+              </label>
+              <label class="field-label">Loại Profile
+                <select id="profile_type" class="field-input" onchange="App.toggleProfileInputs()">
+                  <option value="0">Không có (Flat)</option>
+                  <option value="1">Theo phổ PSD (Spectrum)</option>
+                  <option value="3">Sóng Cosine (Bump)</option>
+                </select>
+              </label>
+            </div>
+
+            <div id="psd-inputs" class="hidden">
+              <div class="field-row">
+                <label class="field-label">Tiêu chuẩn phổ
+                  <select id="psd_type" class="field-input">
+                    <option value="Chinese_HSR">Chinese HSR (Zhai et al.)</option>
+                    <option value="Eurocode_L">Eurocode / ERRI (Low)</option>
+                    <option value="Eurocode_H">Eurocode / ERRI (High)</option>
+                    <option value="German_L">German (Low)</option>
+                    <option value="German_H">German (High)</option>
+                    <option value="FRA_6">FRA Class 6 (USA)</option>
+                    <option value="SNCF">SNCF (Pháp)</option>
+                  </select>
+                </label>
+                <label class="field-label">Ngẫu nhiên (Seed)
+                  <input id="profile_seed" type="number" class="field-input" value="42" step="1" />
+                </label>
+              </div>
+            </div>
+
+            <div id="bump-inputs" class="hidden">
+              <div class="field-row">
+                <label class="field-label">Biên độ (m)
+                  <input id="profile_amp" type="number" class="field-input" value="0.002" step="0.001" />
+                </label>
+                <label class="field-label">Chiều dài sóng (m)
+                  <input id="profile_length" type="number" class="field-input" value="1.0" step="0.1" />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Train Config -->
+          <div class="glass-card">
+            <div class="card-header">
+              <span class="card-icon">🚄</span>
+              <span>Train Configuration — HSLM-A</span>
+            </div>
+
+            <div class="checkbox-header">
+              <span class="field-label" style="margin:0">Chọn loại tàu</span>
+              <button class="btn-ghost" id="btn-select-all">Tích chọn tất cả</button>
+            </div>
+            <div class="train-grid" id="train-checkboxes">
+              <!-- injected by JS -->
+            </div>
+
+            <label class="field-label" style="margin-top:1.2rem">Số toa xe (trống = tiêu chuẩn EN)
+              <input id="num_coaches" type="number" class="field-input" placeholder="Mặc định" min="1" />
+            </label>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn-primary" onclick="App.goToTab('tab-vibration')">Tiếp theo → Kiểm tra dao động ②</button>
+        </div>
+      </section>
+
+      <!-- ===================== WINDOW 2: FREE VIBRATION ===================== -->
+      <section id="tab-vibration" class="tab-pane">
+        <h2 class="section-title">Free Vibration Check <span class="title-sub">— Kiểm tra Phân tích động</span></h2>
+
+        <div class="card-grid one-col">
+          <div class="glass-card">
+            <div class="card-header">
+              <span class="card-icon">📐</span>
+              <span>Eigenvalue Analysis — EN 1991-2</span>
+            </div>
+            <p class="hint-text">Tính tần số tự nhiên của cầu dầm theo thông số đã nhập ở Window 1.</p>
+            <button class="btn-gradient" id="btn-run-vibration">
+              <span id="btn-vib-label">▶ Run Eigenvalue Analysis</span>
+            </button>
+
+            <!-- Results -->
+            <div id="vib-results" class="results-area hidden">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Mode &amp; Loại dao động</th>
+                    <th>Tần số (Hz)</th>
+                    <th>Biểu đồ dao động</th>
+                  </tr>
+                </thead>
+                <tbody id="vib-table-body"></tbody>
+              </table>
+
+              <div id="vib-verdict" class="verdict-box"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn-ghost" onclick="App.goToTab('tab-inputs')">← Quay lại ①</button>
+          <button class="btn-primary" onclick="App.goToTab('tab-sweep')">Tiếp theo → Dynamic Sweep ③</button>
+        </div>
+      </section>
+
+      <!-- ===================== WINDOW 3: DYNAMIC SWEEP ===================== -->
+      <section id="tab-sweep" class="tab-pane">
+        <h2 class="section-title">Dynamic Sweep &amp; Plotting <span class="title-sub">— Phân tích Động lực học</span></h2>
+
+        <div class="card-grid two-col">
+
+          <!-- Config card -->
+          <div class="glass-card">
+            <div class="card-header">
+              <span class="card-icon">⚡</span>
+              <span>Dải vận tốc tính toán</span>
+            </div>
+            <div class="field-row">
+              <label class="field-label">V_min (km/h)
+                <input id="v_min" type="number" class="field-input" value="250" step="10" />
+              </label>
+              <label class="field-label">V_max (km/h)
+                <input id="v_max" type="number" class="field-input" value="350" step="10" />
+              </label>
+              <label class="field-label">Bước V_step (km/h)
+                <input id="v_step" type="number" class="field-input" value="10" step="5" min="1" />
+              </label>
+            </div>
+
+            <div class="action-row" style="margin-top:1.5rem">
+              <button class="btn-gradient sweep-btn" id="btn-run-sweep">
+                ▶ Run Dynamic Sweep Analysis
+              </button>
+              <button class="btn-stop" id="btn-stop-sweep" disabled>
+                ■ Stop
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress card -->
+          <div class="glass-card" id="progress-card">
+            <div class="card-header">
+              <span class="card-icon">📊</span>
+              <span>Tiến độ tính toán</span>
+            </div>
+            <div id="progress-area" class="progress-area">
+              <p class="hint-text" id="progress-idle">Nhấn nút để bắt đầu phân tích...</p>
+              <div id="progress-bar-wrap" class="hidden">
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" id="progress-bar-fill"></div>
+                </div>
+                <p class="progress-label" id="progress-label">0%</p>
+                <p class="progress-status" id="progress-status">Đang chuẩn bị...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results dashboard -->
+        <div id="results-dashboard" class="results-dashboard hidden">
+          <h3 class="section-subtitle">📈 Kết quả Phân tích Động lực học</h3>
+          <div class="chart-grid">
+            <div class="chart-card glass-card">
+              <div class="chart-title">Võng giữa nhịp (Displacement)</div>
+              <img id="img-disp" class="result-img" alt="Displacement plot" />
+            </div>
+            <div class="chart-card glass-card">
+              <div class="chart-title">Gia tốc dầm (Acceleration)</div>
+              <img id="img-acc" class="result-img" alt="Acceleration plot" />
+            </div>
+            <div class="chart-card glass-card">
+              <div class="chart-title">Tàu nguy hiểm nhất (Critical Train)</div>
+              <img id="img-worst" class="result-img" alt="Critical train plot" />
+            </div>
+            <div class="chart-card glass-card">
+              <div class="chart-title">Kiểm tra tần số (Frequency Check)</div>
+              <img id="img-freq" class="result-img" alt="Frequency plot" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Error box -->
+        <div id="sweep-error" class="error-box hidden"></div>
+
+        <div class="action-row">
+          <button class="btn-ghost" onclick="App.goToTab('tab-vibration')">← Quay lại ②</button>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="app-footer">
+      Train-Track-Bridge-2D · Python Version · BTE · UTC · EN 1991-2
+    </footer>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
