@@ -212,12 +212,14 @@ const App = (() => {
     const trainName  = document.getElementById('train_name').value;
     const velKmh     = parseFloat(document.getElementById('sim_vel').value) || 300;
     const numCoaches = parseInt(document.getElementById('num_coaches').value) || null;
+    const fastMode   = !!document.getElementById('sim_fast_mode')?.checked;
 
     const body = {
       bridge:      _getBridgeParams(),
       train_name:  trainName,
       num_coaches: numCoaches,
       vel_kmh:     velKmh,
+      fast_mode:   fastMode,
     };
 
     if (trainName === 'Custom') {

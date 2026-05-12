@@ -68,7 +68,7 @@ def main():
     # Coarse integration mesh for sub-second speeds
     Calc.Options.beam_frq_factor = 4.0
     Calc.Options.veh_frq_factor  = 4.0
-    Calc.Options.min_Nele        = 1.0
+    Calc.Options.min_Nele        = 3.0
 
     # =====================================================================
     # ---- Run Simulation ----

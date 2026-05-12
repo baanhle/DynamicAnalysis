@@ -154,6 +154,7 @@ async def api_run_dynamic(body: DynamicSimRequest):
         "train_name":  body.train_name,
         "num_coaches": body.num_coaches,
         "vel_kmh":     body.vel_kmh,
+        "fast_mode":   body.fast_mode,
     }
 
     loop = asyncio.get_event_loop()

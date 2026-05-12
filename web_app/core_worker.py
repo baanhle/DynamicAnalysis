@@ -31,9 +31,9 @@ from ttb2d.plotting import C04_HSLM_Summary_Plots
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _fig_to_b64(fig: plt.Figure) -> str:
+def _fig_to_b64(fig: plt.Figure, dpi: int = 120) -> str:
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
     buf.seek(0)
     data = base64.b64encode(buf.read()).decode("utf-8")
     plt.close(fig)
@@ -63,7 +63,7 @@ def _make_track(track_type: str) -> types.SimpleNamespace:
     return TrackProp_Zhai_WithBallastOnBridge()
 
 
-def _make_calc(p: dict = None) -> types.SimpleNamespace:
+def _make_calc(p: dict = None, fast_mode: bool = False) -> types.SimpleNamespace:
     Calc = types.SimpleNamespace()
     Calc.Profile = types.SimpleNamespace()
     Calc.Profile.Type = 0
@@ -82,14 +82,23 @@ def _make_calc(p: dict = None) -> types.SimpleNamespace:
 
     Calc.Options = types.SimpleNamespace()
     Calc.Options.redux = 1
-    Calc.Options.VBI = 1
+    Calc.Options.VBI = 0 if fast_mode else 1
     Calc.Options.calc_model_frq = 0
     Calc.Options.calc_model_modes = 0
     
-    # Aggressively coarse integration step limits for real-time web application feedback
-    Calc.Options.beam_frq_factor = 4.0
-    Calc.Options.veh_frq_factor  = 4.0
-    Calc.Options.min_Nele        = 1.0
+    # Two presets: balanced default and aggressive fast mode for constrained servers.
+    if fast_mode:
+        Calc.Options.beam_frq_factor = 2.5
+        Calc.Options.veh_frq_factor  = 2.5
+        Calc.Options.min_Nele        = 1.5
+        Calc.Options.tail_duration   = 2.0
+        Calc.Options.tail_dt         = 0.012
+    else:
+        Calc.Options.beam_frq_factor = 3.0
+        Calc.Options.veh_frq_factor  = 3.0
+        Calc.Options.min_Nele        = 2.0
+        Calc.Options.tail_duration   = 4.0
+        Calc.Options.tail_dt         = 0.01
     return Calc
 
 
@@ -251,6 +260,11 @@ def run_single_simulation(params: dict) -> dict:
     train_name = params.get("train_name", "A1")
     num_coaches = params.get("num_coaches", None)
     vel_kmh    = float(params.get("vel_kmh", 300.0))
+    fast_mode  = bool(params.get("fast_mode", False))
+
+    # In fast mode, cap default HSLM consist length unless user explicitly sets coach count.
+    if fast_mode and num_coaches is None and train_name in HSLM_PARAMS:
+        num_coaches = min(8, HSLM_PARAMS[train_name][0])
 
     # Build train
     custom_params = params.get("custom_train_params", None)
@@ -276,7 +290,7 @@ def run_single_simulation(params: dict) -> dict:
     Track.Rail.Mesh.Ele.num_per_spacing = 1
 
     Beam = _make_beam(bridge_p)
-    Calc = _make_calc(bridge_p.get("profile"))
+    Calc = _make_calc(bridge_p.get("profile"), fast_mode=fast_mode)
 
     # Run full simulation
     Calc, Train, Track, Beam, Model, Sol = B00_Calculations(Calc, Train, Track, Beam)
@@ -303,6 +317,16 @@ def run_single_simulation(params: dict) -> dict:
     max_acc_ms2 = float(np.max(np.abs(acc_ms2)))
     duration_s  = float(t[-1])
 
+    # Downsample plotting only (keep statistics on full arrays).
+    plot_stride = 1
+    if fast_mode and len(t) > 1200:
+        plot_stride = int(np.ceil(len(t) / 1200))
+    t_plot = t[::plot_stride]
+    disp_plot = disp_mm[::plot_stride]
+    acc_plot = acc_ms2[::plot_stride]
+
+    plot_dpi = 90 if fast_mode else 120
+
     # ── Plot 1: Displacement time-history ──────────────────────────────────
     COLOR_DISP = "#00d4ff"
     COLOR_ACC  = "#ff6b6b"
@@ -312,7 +336,7 @@ def run_single_simulation(params: dict) -> dict:
     fig_disp, ax_d = plt.subplots(figsize=(9, 4))
     fig_disp.patch.set_facecolor(DARK_BG)
     ax_d.set_facecolor(PANEL_BG)
-    ax_d.plot(t, disp_mm, color=COLOR_DISP, linewidth=1.5, label=f"Chuyển vị giữa nhịp (max = {max_disp_mm:.2f} mm)")
+    ax_d.plot(t_plot, disp_plot, color=COLOR_DISP, linewidth=1.5, label=f"Chuyển vị giữa nhịp (max = {max_disp_mm:.2f} mm)")
     ax_d.axhline(0, color="#555", linewidth=0.8)
     ax_d.set_xlabel("Thời gian t (s)", color="#ccc", fontsize=11)
     ax_d.set_ylabel("Chuyển vị (mm)", color="#ccc", fontsize=11)
@@ -325,13 +349,13 @@ def run_single_simulation(params: dict) -> dict:
     ax_d.grid(True, color="#2a2a4a", linewidth=0.7, linestyle="--")
     legend = ax_d.legend(fontsize=9, facecolor="#0d1117", labelcolor="#ccc", edgecolor="#333")
     fig_disp.tight_layout(pad=1.5)
-    img_disp_time = _fig_to_b64(fig_disp)
+    img_disp_time = _fig_to_b64(fig_disp, dpi=plot_dpi)
 
     # ── Plot 2: Acceleration time-history ──────────────────────────────────
     fig_acc, ax_a = plt.subplots(figsize=(9, 4))
     fig_acc.patch.set_facecolor(DARK_BG)
     ax_a.set_facecolor(PANEL_BG)
-    ax_a.plot(t, acc_ms2, color=COLOR_ACC, linewidth=1.5, label=f"Gia tốc giữa nhịp (max = {max_acc_ms2:.3f} m/s²)")
+    ax_a.plot(t_plot, acc_plot, color=COLOR_ACC, linewidth=1.5, label=f"Gia tốc giữa nhịp (max = {max_acc_ms2:.3f} m/s²)")
     ax_a.axhline(0, color="#555", linewidth=0.8)
     ax_a.set_xlabel("Thời gian t (s)", color="#ccc", fontsize=11)
     ax_a.set_ylabel("Gia tốc (m/s²)", color="#ccc", fontsize=11)
@@ -344,13 +368,15 @@ def run_single_simulation(params: dict) -> dict:
     ax_a.grid(True, color="#2a2a4a", linewidth=0.7, linestyle="--")
     ax_a.legend(fontsize=9, facecolor="#0d1117", labelcolor="#ccc", edgecolor="#333")
     fig_acc.tight_layout(pad=1.5)
-    img_acc_time = _fig_to_b64(fig_acc)
+    img_acc_time = _fig_to_b64(fig_acc, dpi=plot_dpi)
 
     # Educational verdict comparison against Eurocode limit (3.5 m/s² for ballast)
     limit_val = 3.5
     verdict_str = "ĐẠT" if max_acc_ms2 <= limit_val else "KHÔNG ĐẠT"
+    mode_text = "FAST" if fast_mode else "BALANCED"
     status_text = (
         f"Hoàn thành mô phỏng! Đoàn tàu {train_name} @ {vel_kmh:.0f} km/h.\n"
+        f"• Chế độ tính toán: {mode_text}\n"
         f"• Chuyển vị giữa nhịp cực đại: Δ_max = {max_disp_mm:.2f} mm\n"
         f"• Gia tốc sàn dầm cực đại: a_max = {max_acc_ms2:.3f} m/s²\n"
         f"► Đánh giá an toàn dao động (EN 1991-2): {verdict_str} (Giới hạn cho phép: {limit_val} m/s²)"

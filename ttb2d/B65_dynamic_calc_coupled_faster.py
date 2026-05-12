@@ -5,7 +5,7 @@ Uses sparse matrix assembly for time-dependent coupling terms.
 """
 import numpy as np
 from scipy import sparse
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import spsolve, splu
 import time as time_module
 from .B03_beam_matrices import shape_fun, shape_fun_p, shape_fun_pp
 
@@ -23,7 +23,8 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
 
     # Coupled BC
     BC_DOF_fixed = (global_ind_end + Model.BC.DOF_fixed).astype(int)
-    num_DOF_fixed = len(BC_DOF_fixed)
+    bc_mask = np.zeros(Coup_DOF_Tnum, dtype=bool)
+    bc_mask[BC_DOF_fixed] = True
 
     # Auxiliary variables
     vel = Veh_list[0].vel
@@ -80,6 +81,8 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
     start_time = time_module.time()
     last_display = disp_every
 
+    z_csc = sparse.csc_matrix((Coup_DOF_Tnum, Coup_DOF_Tnum))
+
     # *** With VBI ***
     if Calc.Options.VBI == 1:
         for t in range(num_t - 1):
@@ -90,16 +93,16 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
                 last_display += disp_every
 
             # Time-dependent coupling terms - collect sparse triplets
-            rows_diag = []
-            cols_diag = []
-            vals_Kg_diag = []
-            vals_Cg_diag = []
-            vals_Mg_diag = []
+            rows_diag_blocks = []
+            cols_diag_blocks = []
+            vals_Kg_diag_blocks = []
+            vals_Cg_diag_blocks = []
+            vals_Mg_diag_blocks = []
 
-            rows_off = []
-            cols_off = []
-            vals_Kg_off = []
-            vals_Cg_off = []
+            rows_off_blocks = []
+            cols_off_blocks = []
+            vals_Kg_off_blocks = []
+            vals_Cg_off_blocks = []
 
             F_add = np.zeros(Coup_DOF_Tnum)
 
@@ -136,13 +139,11 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
                     Cg_add = NN * cs[wheel] + 2 * ms[wheel] * vel * NNp
                     Mg_add = NN * ms[wheel]
 
-                    for ii in range(4):
-                        for jj in range(4):
-                            rows_diag.append(col_dof[ii])
-                            cols_diag.append(col_dof[jj])
-                            vals_Kg_diag.append(Kg_add[ii, jj])
-                            vals_Cg_diag.append(Cg_add[ii, jj])
-                            vals_Mg_diag.append(Mg_add[ii, jj])
+                    rows_diag_blocks.append(np.repeat(col_dof, 4))
+                    cols_diag_blocks.append(np.tile(col_dof, 4))
+                    vals_Kg_diag_blocks.append(Kg_add.ravel())
+                    vals_Cg_diag_blocks.append(Cg_add.ravel())
+                    vals_Mg_diag_blocks.append(Mg_add.ravel())
 
                     # Off-diagonal block matrices
                     N2w = N2w_wheels[wheel, :]
@@ -154,20 +155,16 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
                     Cg_off = (OffDiag * cs[wheel]).T
 
                     # rows=veh_gi, cols=col_dof (vehicle->track)
-                    for ii in range(num_veh_dof):
-                        for jj in range(4):
-                            rows_off.append(veh_gi[ii])
-                            cols_off.append(col_dof[jj])
-                            vals_Kg_off.append(Kg_off_v2t[ii, jj])
-                            vals_Cg_off.append(Cg_off[ii, jj])
+                    rows_off_blocks.append(np.repeat(veh_gi, 4))
+                    cols_off_blocks.append(np.tile(col_dof, num_veh_dof))
+                    vals_Kg_off_blocks.append(Kg_off_v2t.ravel())
+                    vals_Cg_off_blocks.append(Cg_off.ravel())
 
                     # rows=col_dof, cols=veh_gi (track->vehicle)
-                    for jj in range(4):
-                        for ii in range(num_veh_dof):
-                            rows_off.append(col_dof[jj])
-                            cols_off.append(veh_gi[ii])
-                            vals_Kg_off.append(Kg_off_t2v[ii, jj])
-                            vals_Cg_off.append(Cg_off[ii, jj])
+                    rows_off_blocks.append(np.repeat(col_dof, num_veh_dof))
+                    cols_off_blocks.append(np.tile(veh_gi, 4))
+                    vals_Kg_off_blocks.append(Kg_off_t2v.ravel(order='F'))
+                    vals_Cg_off_blocks.append(Cg_off.ravel(order='F'))
 
                     # Force vector
                     h_path = cv.h_path[wheel, t + 1]
@@ -181,40 +178,45 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
 
             # Assemble coupling sparse matrices without dynamic format conversion overhead
             # Filter boundary fixed DOFs directly from triplets before sparse matrix assembly
-            if len(rows_diag) > 0:
-                # Filter out diagonal entries mapping to fixed DOFs
-                valid_diag = [idx for idx, r in enumerate(rows_diag) if r not in BC_DOF_fixed and cols_diag[idx] not in BC_DOF_fixed]
-                r_diag_f = [rows_diag[idx] for idx in valid_diag]
-                c_diag_f = [cols_diag[idx] for idx in valid_diag]
-                
+            if rows_diag_blocks:
+                rows_diag_arr = np.concatenate(rows_diag_blocks).astype(int, copy=False)
+                cols_diag_arr = np.concatenate(cols_diag_blocks).astype(int, copy=False)
+                valid_diag = ~(bc_mask[rows_diag_arr] | bc_mask[cols_diag_arr])
+                r_diag_f = rows_diag_arr[valid_diag]
+                c_diag_f = cols_diag_arr[valid_diag]
+                vkg_diag = np.concatenate(vals_Kg_diag_blocks).astype(float, copy=False)[valid_diag]
+                vcg_diag = np.concatenate(vals_Cg_diag_blocks).astype(float, copy=False)[valid_diag]
+                vmg_diag = np.concatenate(vals_Mg_diag_blocks).astype(float, copy=False)[valid_diag]
+
                 Kg_coup_diag = sparse.csc_matrix(
-                    ([vals_Kg_diag[idx] for idx in valid_diag], (r_diag_f, c_diag_f)),
+                    (vkg_diag, (r_diag_f, c_diag_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
                 Cg_coup_diag = sparse.csc_matrix(
-                    ([vals_Cg_diag[idx] for idx in valid_diag], (r_diag_f, c_diag_f)),
+                    (vcg_diag, (r_diag_f, c_diag_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
                 Mg_coup_diag = sparse.csc_matrix(
-                    ([vals_Mg_diag[idx] for idx in valid_diag], (r_diag_f, c_diag_f)),
+                    (vmg_diag, (r_diag_f, c_diag_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
             else:
-                z = sparse.csc_matrix((Coup_DOF_Tnum, Coup_DOF_Tnum))
-                Kg_coup_diag = z; Cg_coup_diag = z; Mg_coup_diag = z
+                Kg_coup_diag = z_csc; Cg_coup_diag = z_csc; Mg_coup_diag = z_csc
 
-            if len(rows_off) > 0:
-                # Filter out off-diagonal entries mapping to fixed DOFs
-                valid_off = [idx for idx, r in enumerate(rows_off) if r not in BC_DOF_fixed and cols_off[idx] not in BC_DOF_fixed]
-                r_off_f = [rows_off[idx] for idx in valid_off]
-                c_off_f = [cols_off[idx] for idx in valid_off]
-                
+            if rows_off_blocks:
+                rows_off_arr = np.concatenate(rows_off_blocks).astype(int, copy=False)
+                cols_off_arr = np.concatenate(cols_off_blocks).astype(int, copy=False)
+                valid_off = ~(bc_mask[rows_off_arr] | bc_mask[cols_off_arr])
+                r_off_f = rows_off_arr[valid_off]
+                c_off_f = cols_off_arr[valid_off]
+                vkg_off = np.concatenate(vals_Kg_off_blocks).astype(float, copy=False)[valid_off]
+                vcg_off = np.concatenate(vals_Cg_off_blocks).astype(float, copy=False)[valid_off]
+
                 Kg_coup_off = sparse.csc_matrix(
-                    ([vals_Kg_off[idx] for idx in valid_off], (r_off_f, c_off_f)),
+                    (vkg_off, (r_off_f, c_off_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
                 Cg_coup_off = sparse.csc_matrix(
-                    ([vals_Cg_off[idx] for idx in valid_off], (r_off_f, c_off_f)),
+                    (vcg_off, (r_off_f, c_off_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
             else:
-                z = sparse.csc_matrix((Coup_DOF_Tnum, Coup_DOF_Tnum))
-                Kg_coup_off = z; Cg_coup_off = z
+                Kg_coup_off = z_csc; Cg_coup_off = z_csc
 
             Coup_Kg = UnCoup_Kg + Kg_coup_diag + Kg_coup_off
             Coup_Cg = UnCoup_Cg + Cg_coup_diag + Cg_coup_off
@@ -286,8 +288,8 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
 
     # ── Tail Simulation Stage (Free Vibration Decay) ──
     # Integrate system matrices with zero input force for an additional 10.0s using a coarse step (dt_tail = 0.01s)
-    dt_tail = 0.01
-    tail_duration = 10.0
+    dt_tail = float(getattr(Calc.Options, 'tail_dt', 0.01))
+    tail_duration = float(getattr(Calc.Options, 'tail_duration', 10.0))
     num_t_tail = int(tail_duration / dt_tail)
 
     NB_tail = np.zeros(6)
@@ -298,8 +300,8 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
     NB_tail[4] = 1.0 - delta / beta
     NB_tail[5] = (1.0 - delta / (2 * beta)) * dt_tail
 
-    effKg_tail = UnCoup_Kg + NB_tail[0] * UnCoup_Mg + NB_tail[1] * UnCoup_Cg
-    effKg_tail = sparse.csc_matrix(effKg_tail)
+    effKg_tail = sparse.csc_matrix(UnCoup_Kg + NB_tail[0] * UnCoup_Mg + NB_tail[1] * UnCoup_Cg)
+    effKg_tail_lu = splu(effKg_tail)
 
     # Initialize tail state from last frame of moving load stage
     U_tail = np.zeros((Coup_DOF_Tnum, num_t_tail))
@@ -316,7 +318,7 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
         rhs = UnCoup_Mg @ A_vec + UnCoup_Cg @ B_vec
         rhs[BC_DOF_fixed] = 0
 
-        u_next = spsolve(effKg_tail, rhs)
+        u_next = effKg_tail_lu.solve(rhs)
         v_next = NB_tail[1] * u_next - B_vec
         a_next = u_next * NB_tail[0] - A_vec
 

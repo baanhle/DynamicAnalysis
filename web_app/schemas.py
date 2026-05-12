@@ -70,6 +70,7 @@ class DynamicSimRequest(BaseModel):
     train_name: str = Field("A1", description="Train type: A1..A10, ChineseStar, ShinkansenS300, Custom")
     num_coaches: Optional[int] = Field(None, description="None = default")
     vel_kmh: float = Field(300.0, description="Train velocity [km/h]")
+    fast_mode: bool = Field(False, description="True = prioritize speed over coupled VBI fidelity")
     custom_train_params: Optional[dict] = Field(None, description="Weights and lengths for Custom train option")
 
 
