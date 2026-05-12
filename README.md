@@ -359,10 +359,6 @@ Time step is computed automatically from beam/vehicle frequencies and element si
 
 ## Citation
 
-If you use this tool, please cite the original MATLAB work:
-
-> Cantero, D. (2022). TTB-2D: A MATLAB tool for train–track–bridge interaction dynamic simulations. *SoftwareX*, 20, 101221. https://doi.org/10.1016/j.softx.2022.101221
-
 ---
 
 ## License
