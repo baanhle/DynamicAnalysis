@@ -179,27 +179,38 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
                     F_add[veh_gi] += f_profile * N2w
                     F_add[col_dof] += -f_profile * sfx
 
-            # Assemble coupling sparse matrices
+            # Assemble coupling sparse matrices without dynamic format conversion overhead
+            # Filter boundary fixed DOFs directly from triplets before sparse matrix assembly
             if len(rows_diag) > 0:
+                # Filter out diagonal entries mapping to fixed DOFs
+                valid_diag = [idx for idx, r in enumerate(rows_diag) if r not in BC_DOF_fixed and cols_diag[idx] not in BC_DOF_fixed]
+                r_diag_f = [rows_diag[idx] for idx in valid_diag]
+                c_diag_f = [cols_diag[idx] for idx in valid_diag]
+                
                 Kg_coup_diag = sparse.csc_matrix(
-                    (vals_Kg_diag, (rows_diag, cols_diag)),
+                    ([vals_Kg_diag[idx] for idx in valid_diag], (r_diag_f, c_diag_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
                 Cg_coup_diag = sparse.csc_matrix(
-                    (vals_Cg_diag, (rows_diag, cols_diag)),
+                    ([vals_Cg_diag[idx] for idx in valid_diag], (r_diag_f, c_diag_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
                 Mg_coup_diag = sparse.csc_matrix(
-                    (vals_Mg_diag, (rows_diag, cols_diag)),
+                    ([vals_Mg_diag[idx] for idx in valid_diag], (r_diag_f, c_diag_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
             else:
                 z = sparse.csc_matrix((Coup_DOF_Tnum, Coup_DOF_Tnum))
                 Kg_coup_diag = z; Cg_coup_diag = z; Mg_coup_diag = z
 
             if len(rows_off) > 0:
+                # Filter out off-diagonal entries mapping to fixed DOFs
+                valid_off = [idx for idx, r in enumerate(rows_off) if r not in BC_DOF_fixed and cols_off[idx] not in BC_DOF_fixed]
+                r_off_f = [rows_off[idx] for idx in valid_off]
+                c_off_f = [cols_off[idx] for idx in valid_off]
+                
                 Kg_coup_off = sparse.csc_matrix(
-                    (vals_Kg_off, (rows_off, cols_off)),
+                    ([vals_Kg_off[idx] for idx in valid_off], (r_off_f, c_off_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
                 Cg_coup_off = sparse.csc_matrix(
-                    (vals_Cg_off, (rows_off, cols_off)),
+                    ([vals_Cg_off[idx] for idx in valid_off], (r_off_f, c_off_f)),
                     shape=(Coup_DOF_Tnum, Coup_DOF_Tnum))
             else:
                 z = sparse.csc_matrix((Coup_DOF_Tnum, Coup_DOF_Tnum))
@@ -208,22 +219,9 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
             Coup_Kg = UnCoup_Kg + Kg_coup_diag + Kg_coup_off
             Coup_Cg = UnCoup_Cg + Cg_coup_diag + Cg_coup_off
             Coup_Mg = UnCoup_Mg + Mg_coup_diag
+            
             Coup_F = UnCoup_F + F_add
-
-            # Re-apply BCs
-            Coup_Mg = Coup_Mg.tolil()
-            Coup_Cg = Coup_Cg.tolil()
-            Coup_Kg = Coup_Kg.tolil()
-            for d in BC_DOF_fixed:
-                Coup_Mg[d, :] = 0; Coup_Mg[:, d] = 0
-                Coup_Cg[d, :] = 0; Coup_Cg[:, d] = 0
-                Coup_Kg[d, :] = 0; Coup_Kg[:, d] = 0
-                Coup_Mg[d, d] = Model.BC.DOF_fixed_value
-                Coup_Kg[d, d] = Model.BC.DOF_fixed_value
             Coup_F[BC_DOF_fixed] = 0
-            Coup_Kg = sparse.csc_matrix(Coup_Kg)
-            Coup_Cg = sparse.csc_matrix(Coup_Cg)
-            Coup_Mg = sparse.csc_matrix(Coup_Mg)
 
             # Newmark-Beta integration
             effKg = Coup_Kg + NB[0] * Coup_Mg + NB[1] * Coup_Cg

@@ -9,16 +9,14 @@ from .B03_beam_matrices import shape_fun, shape_fun_p, shape_fun_pp
 
 
 def _calc_deformation_under_wheels(Sol, Track, Calc, Veh_list):
-    """Calculate deformation and its derivatives under each wheel at each time step."""
+    """Calculate deformation and its derivatives under each wheel at each time step vectorized."""
     num_veh = Veh_list[0].Tnum if hasattr(Veh_list[0], 'Tnum') else len(Veh_list)
     num_t = Calc.Solver.num_t
-    vel = Veh_list[0].vel
 
     for veh_num in range(num_veh):
         veh = Veh_list[veh_num]
         cv = Calc.Veh[veh_num]
         n_wheels = veh.Wheels.num
-
         num_t_moving = cv.elexj.shape[1]
 
         def_under = np.zeros((n_wheels, num_t))
@@ -28,30 +26,38 @@ def _calc_deformation_under_wheels(Sol, Track, Calc, Veh_list):
         vel_under_p = np.zeros((n_wheels, num_t))
         def_under_pp = np.zeros((n_wheels, num_t))
 
-        for t_step in range(num_t_moving):
-            for wheel in range(n_wheels):
-                ele_num = cv.elexj[wheel, t_step]
-                if ele_num < 0:
-                    continue
+        # Vectorized evaluation per wheel across active moving time steps
+        for wheel in range(n_wheels):
+            ele_nums = cv.elexj[wheel, :num_t_moving]
+            valid = ele_nums >= 0
+            if not np.any(valid):
+                continue
 
-                x = cv.xj[wheel, t_step]
-                a = Track.Rail.Mesh.Ele.a[ele_num]
-                dofs = Track.Rail.Mesh.Ele.DOF[ele_num, :]
+            v_ele = ele_nums[valid]
+            v_x = cv.xj[wheel, :num_t_moving][valid]
+            v_a = Track.Rail.Mesh.Ele.a[v_ele]
 
-                sfx = shape_fun(x, a).flatten()
-                sfxp = shape_fun_p(x, a).flatten()
-                sfxpp = shape_fun_pp(x, a).flatten()
+            # Vectorized shape functions: shape (4, N_valid)
+            sfx   = shape_fun(v_x, v_a)
+            sfxp  = shape_fun_p(v_x, v_a)
+            sfxpp = shape_fun_pp(v_x, v_a)
 
-                u_rail = Sol.Model.Nodal.U[dofs, t_step]
-                v_rail = Sol.Model.Nodal.V[dofs, t_step]
-                a_rail = Sol.Model.Nodal.A[dofs, t_step]
+            # Global DOFs corresponding to active track rail elements: shape (4, N_valid)
+            dofs = Track.Rail.Mesh.Ele.DOF[v_ele, :].T
 
-                def_under[wheel, t_step] = sfx @ u_rail
-                vel_under[wheel, t_step] = sfx @ v_rail
-                acc_under[wheel, t_step] = sfx @ a_rail
-                def_under_p[wheel, t_step] = sfxp @ u_rail
-                vel_under_p[wheel, t_step] = sfxp @ v_rail
-                def_under_pp[wheel, t_step] = sfxpp @ u_rail
+            # Extract nodal solutions at valid time steps
+            t_indices = np.arange(num_t_moving)[valid]
+            u_rail = Sol.Model.Nodal.U[dofs, t_indices] # shape (4, N_valid)
+            v_rail = Sol.Model.Nodal.V[dofs, t_indices]
+            a_rail = Sol.Model.Nodal.A[dofs, t_indices]
+
+            # Einstein summation or batch dot products along DOFs
+            def_under[wheel, t_indices]    = np.sum(sfx * u_rail, axis=0)
+            vel_under[wheel, t_indices]    = np.sum(sfx * v_rail, axis=0)
+            acc_under[wheel, t_indices]    = np.sum(sfx * a_rail, axis=0)
+            def_under_p[wheel, t_indices]  = np.sum(sfxp * u_rail, axis=0)
+            vel_under_p[wheel, t_indices]  = np.sum(sfxp * v_rail, axis=0)
+            def_under_pp[wheel, t_indices] = np.sum(sfxpp * u_rail, axis=0)
 
         Sol.Veh[veh_num].def_under = def_under
         Sol.Veh[veh_num].vel_under = vel_under
