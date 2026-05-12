@@ -30,6 +30,12 @@ Các thành phần chính:
 - **Hệ thống treo thứ cấp (Secondary suspension):** Liên kết giữa giá chuyển hướng và thân toa xe chính ($k_s, c_s$).
 - **Thân xe và Giá chuyển hướng:** Được mô phỏng là các thanh cứng có khối lượng ($m$) và mô men quán tính ($I$).
 
+**Mở rộng Thư viện Tải trọng Tàu:**
+Bên cạnh các dải tàu tiêu chuẩn **HSLM-A (A1–A10)** theo tiêu chuẩn châu Âu EN 1991-2, lõi mô phỏng đã tích hợp bổ sung các dòng tàu tốc độ cao thực tế trên thế giới và bộ tính năng linh hoạt:
+- **🇨🇳 Chinese Star — Power Car** (Zhai et al., 2009): Bố trí cụm xe động lực nặng với phân bố tải trọng trục đặc thù của hạ tầng đường sắt cao tốc Trung Quốc.
+- **🇯🇵 Shinkansen S300** (Wu & Yang, 2003): Mô hình chuỗi toa xe điển hình của Nhật Bản với mật độ khối lượng được tối ưu hóa.
+- **⚙️ Tàu Tự định nghĩa (Custom Setup):** Cho phép người dùng hoặc sinh viên linh hoạt tùy chỉnh trực tiếp thông số cấu trúc từng khoang xe (khối lượng thân toa $m_{body}$, chiều dài toa $L_{body}$, khối lượng bogie $m_{bogie}$ và tải trọng trục $m_{wheel}$) thông qua giao diện điều khiển động.
+
 ### 2.2. Mô hình Kết cấu Cầu (Bridge Model)
 
 Cầu được mô phỏng như một dầm Euler-Bernoulli sử dụng phương pháp Phần tử hữu hạn (FEM). 
@@ -116,11 +122,12 @@ Sự di chuyển của lực tiếp xúc $\{F_c\}$ dọc theo chiều dài cầu
 
 $$ \begin{bmatrix} M_v & 0 \\ 0 & M_b \end{bmatrix} \begin{Bmatrix} \ddot{x}_v \\ \ddot{x}_b \end{Bmatrix} + \begin{bmatrix} C_v & C_{v,b} \\ C_{b,v} & C_b \end{bmatrix} \begin{Bmatrix} \dot{x}_v \\ \dot{x}_b \end{Bmatrix} + \begin{bmatrix} K_v & K_{v,b} \\ K_{b,v} & K_b \end{bmatrix} \begin{Bmatrix} x_v \\ x_b \end{Bmatrix} = \begin{Bmatrix} F_v \\ F_b \end{Bmatrix} $$
 
-Vì ma trận cản và ma trận độ cứng tương tác ($C_{v,b}, C_{b,v}, K_{v,b}, K_{b,v}$) thay đổi liên tục theo vị trí của tàu, cốt lõi giải thuật của ứng dụng sẽ:
-1. **Cập nhật ma trận hệ thống** ở mỗi bước thời gian nhỏ (time step $\Delta t$).
-2. **Tích phân trực tiếp** các phương trình chuyển động bằng thuật toán **Newmark-$\beta$** (một phương pháp giải số vô điều kiện ổn định thường dùng trong động lực học kết cấu).
+**Chiến lược Tích phân Hai giai đoạn (Dual-Stage Simulation Protocol):**
+Để giải quyết bài toán tối ưu hóa tài nguyên tính toán trên nền tảng đám mây nhưng vẫn thu thập đầy đủ dữ liệu quan sát dao động của kết cấu, giải thuật tích phân thời gian **Newmark-$\beta$** được tối ưu hóa thành chuỗi hai bước liên tiếp:
+1. **Giai đoạn 1 (Tương tác Tàu – Đường – Cầu):** Cập nhật liên tục ma trận hệ thống thay đổi theo thời gian và tích phân với bước thời gian cực nhỏ ($dt \approx 0.0003\text{s}$) trong suốt quá trình đoàn tàu lăn bánh trên dầm để đảm bảo độ chính xác vật lý cao nhất.
+2. **Giai đoạn 2 (Dao động Tự do Tắt dần - Decay Tail):** Ngay khi trục bánh xe cuối cùng rời khỏi dầm cầu, hệ phương trình lập tức ngắt bỏ các ma trận tương tác và chuyển hoàn toàn về phương trình dao động tự do của dầm độc lập. Giai đoạn này sử dụng bước thời gian thưa hơn rất nhiều ($dt_{tail} = 0.01\text{s}$) để mở rộng theo dõi thêm **10.0 giây** đường cong dao động tắt dần mà không gây gánh nặng thời gian xử lý cho máy chủ.
 
-Kết quả xuất ra sẽ bao gồm chuyển vị tại các nút, lực tiếp xúc (contact forces), biến dạng, biểu đồ mô men uốn, lực cắt và gia tốc. Các số liệu này đóng vai trò quan trọng giúp kỹ sư đánh giá đầy đủ an toàn của cấu trúc cầu dưới tác dụng của tải trọng đoàn tàu cao tốc.
+Kết quả xuất ra bao gồm chuyển vị, biến dạng, gia tốc tại các nút và dải phân bố lực tiếp xúc theo thời gian.
 
 ---
 
@@ -148,7 +155,7 @@ Trang phân tích động lực học trực tuyến cung cấp một giao diệ
 - **Tiêu chuẩn phổ PSD:** (Chỉ áp dụng khi chọn phổ PSD) Chọn tiêu chuẩn đường sắt tương ứng (Chinese HSR, Eurocode, FRA, v.v...).
 
 **Thông số Tàu (Train Configuration):**
-- Chọn các mô hình tàu HSLM-A tiêu chuẩn theo Eurocode EN 1991-2. Bạn có thể chọn một hoặc nhiều cấu hình tàu để tính toán song song.
+- Lựa chọn dải tàu HSLM-A tiêu chuẩn, tàu thực tế quốc tế (Chinese Star, Shinkansen), hoặc kích hoạt bảng tự nhập thông số thiết kế riêng biệt.
 
 ### 4.2. Free Vibration - Kiểm tra Phân tích động
 
@@ -161,20 +168,17 @@ Sau khi thiết lập cấu hình, hệ thống sẽ tính toán các Tần số
 - Nút **Run Eigenvalue Analysis:** Nhấn để hệ thống giải bài toán trị riêng (Eigenvalue) và tìm ra các tần số dao động riêng.
 - **Bảng kết quả:** Hiển thị các mode dao động tương ứng với tần số $f$ (Hz). Hệ thống sẽ tự động so sánh tần số cơ bản ($n_0$) với các giới hạn trong tiêu chuẩn EN 1991-2 để đưa ra kết luận (Verdict) xem cây cầu này **có bắt buộc** phải phân tích động lực học (Dynamic Analysis) hay không.
 
-### 4.3. Dynamic Sweep - Phân tích Động lực học
+### 4.3. Dynamic Time-History - Mô phỏng Phản ứng Động lực học
 
-Đây là bước chạy mô phỏng cốt lõi. Hệ thống sẽ cho các tàu chạy qua cầu với nhiều vận tốc khác nhau (quét vận tốc - Speed Sweep) để tìm ra vận tốc cộng hưởng nguy hiểm nhất.
+Đây là bước chạy mô phỏng chi tiết phản ứng kết cấu theo miền thời gian.
 
 ![Dynamic Sweep](./docs/images/app_tab_3_sweep.png)
-*Hình 10: Giao diện quét vận tốc và vẽ biểu đồ (Dynamic Sweep)*
+*Hình 10: Giao diện bảng điều khiển mô phỏng thời gian thực (Dynamic Time-History)*
 
-**Các lựa chọn tính toán:**
-- **V_min / V_max (km/h):** Giới hạn dải vận tốc tàu muốn quét. Ví dụ từ 250 km/h đến 350 km/h.
-- **Bước V_step (km/h):** Khoảng cách giữa mỗi lần chạy mô phỏng. Chọn càng nhỏ thì biểu đồ càng mịn nhưng thời gian tính toán sẽ lâu hơn (thông thường chọn 10 km/h).
+**Thông số Mô phỏng:**
+- **Đoàn tàu:** Tự động lấy cấu hình đã chọn ở Window 1.
+- **Vận tốc tính toán V (km/h):** Nhập trực tiếp tốc độ thiết kế mong muốn mô phỏng.
 
-**Biểu đồ kết quả (Results Dashboard):**
-Sau khi hoàn tất, hệ thống sẽ xuất ra 4 biểu đồ quan trọng:
-1. **Võng giữa nhịp (Displacement):** Độ võng lớn nhất của cầu tại từng vận tốc mô phỏng.
-2. **Gia tốc dầm (Acceleration):** Gia tốc lớn nhất của mặt cầu tại từng vận tốc (tiêu chí cực kỳ quan trọng để đánh giá độ an toàn chạy tàu).
-3. **Tàu nguy hiểm nhất (Critical Train):** So sánh hiệu ứng động lực học lớn nhất giữa các mác tàu HSLM-A khác nhau để tìm ra đoàn tàu bất lợi nhất.
-4. **Kiểm tra tần số (Frequency Check):** Biểu đồ thể hiện mức độ nguy hiểm của các hiện tượng cộng hưởng (Resonance) dựa trên chuỗi tần số quét.
+**Khung Báo cáo & Giới hạn Lý thuyết (Critical Restrictions):**
+- **Đầu ra Lịch sử Thời gian:** Xuất trực tiếp biểu đồ độ võng (mm) và biểu đồ gia tốc giữa nhịp (m/s²) trải dài xuyên suốt từ thời điểm tàu chạy qua dầm cho đến hết chuỗi 10 giây dao động tự do tắt dần. Hệ thống tự động đối chiếu giá trị đỉnh gia tốc với tiêu chuẩn cho phép (EN 1991-2 quy định $\le 3.5\text{ m/s}^2$ đối với dầm bê tông ballast).
+- ⚠️ **LƯU Ý KHÔNG GIAN (Planar 2D Limitations):** Bài toán hiện tại được giới hạn phân tích cho mô hình **2D — 1 làn tàu chạy**. Ứng dụng **không xét đến** trường hợp 2 làn tàu chạy ngược/xuôi chiều đồng thời cũng như mô hình dầm không gian 3D. Lý do cốt lõi là khi có 2 làn tàu hoạt động hoặc mô hình dầm mở rộng, tác động của đoàn tàu sẽ bao gồm cả **độ lệch tâm** của tải trọng trục so với tâm hình học dầm cầu. Độ lệch tâm này sẽ kích thích các mode dao động xoắn không gian phức tạp hơn rất nhiều so với ứng xử uốn phẳng thuần túy của dầm 2D đơn làn.

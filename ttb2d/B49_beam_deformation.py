@@ -21,32 +21,17 @@ def B49_BeamDeformation(Sol, Model, Beam, Calc, Train, calc_type):
         Veh_list = Train.Veh.data
         num_veh = len(Veh_list)
 
-        for veh_num in range(num_veh):
-            sta_loads = Veh_list[veh_num].sta_loads
-            cv = Calc.Veh[veh_num]
-            for wheel in range(Veh_list[veh_num].Wheels.num):
-                for t_step in range(Calc.Solver.num_t):
-                    ele_num = cv.elexj[wheel, t_step]
-                    if ele_num < 0:
-                        continue
-                    x = cv.xj[wheel, t_step]
-                    a = Model.Mesh.Ele.a[ele_num]
-                    from .B03_beam_matrices import shape_fun
-                    sfx = shape_fun(x, a).flatten()
-                    dofs = Model.Mesh.Ele.DOF[ele_num, :]
-                    # Build static force at each time step
-                    pass  # Full static calc would be heavy; use simplified approach
-
         # Simplified: compute static solution using Kg and static loads
         num_t = Calc.Solver.num_t
         n_model = Model.Mesh.DOF.Tnum
         StaticU = np.zeros((n_model, num_t))
 
-        for t_step in range(num_t):
-            F = np.zeros(n_model)
-            for veh_num in range(num_veh):
-                cv = Calc.Veh[veh_num]
-                veh = Veh_list[veh_num]
+        for veh_num in range(num_veh):
+            cv = Calc.Veh[veh_num]
+            veh = Veh_list[veh_num]
+            num_t_moving = cv.elexj.shape[1]
+            for t_step in range(num_t_moving):
+                F = np.zeros(n_model)
                 for wheel in range(veh.Wheels.num):
                     ele_num = cv.elexj[wheel, t_step]
                     if ele_num < 0:
@@ -58,8 +43,8 @@ def B49_BeamDeformation(Sol, Model, Beam, Calc, Train, calc_type):
                     dofs = Model.Mesh.Ele.DOF[ele_num]
                     F[dofs] += veh.sta_loads[wheel] * sfx
 
-            F[Model.BC.DOF_fixed] = 0
-            StaticU[:, t_step] = spsolve(Model.Mesh.Kg, F)
+                F[Model.BC.DOF_fixed] = 0
+                StaticU[:, t_step] += spsolve(Model.Mesh.Kg, F)
 
         if not hasattr(Sol.Model.Nodal, 'StaticU'):
             Sol.Model.Nodal.StaticU = StaticU

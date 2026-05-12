@@ -181,9 +181,9 @@ def B07_OptionsProcessing(Calc, Train, Track, Beam):
         print('No redux model is used! Are you sure about this?')
 
     # Beam frequency factor defaults
-    _setdefault(Calc.Options, 'beam_frq_factor', 20)
-    _setdefault(Calc.Options, 'veh_frq_factor', 20)
-    _setdefault(Calc.Options, 'min_Nele', 4)
+    _setdefault(Calc.Options, 'beam_frq_factor', 10)
+    _setdefault(Calc.Options, 'veh_frq_factor', 10)
+    _setdefault(Calc.Options, 'min_Nele', 2)
 
     # Max velocity (for dt from space)
     Calc.Position.v_max = max(abs(Calc.Position.v_0), 1.0)

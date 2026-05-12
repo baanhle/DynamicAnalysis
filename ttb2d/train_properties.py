@@ -103,14 +103,87 @@ HSLM_PARAMS = {
 
 def TrainProp_HSLM(train_name, num_coaches=None):
     """
-    Create a list of vehicle namespaces for an HSLM-A train.
-    train_name: 'A1' through 'A10'
-    Returns list of vehicle objects (all identical intermediate coaches).
+    Router to create a list of vehicle namespaces. Supports HSLM-A1 to A10,
+    ChineseStar, ShinkansenS300, and Custom.
     """
-    N, D, d, P = HSLM_PARAMS[train_name]
-    if num_coaches is None:
-        num_coaches = N
-    vehicles = []
-    for _ in range(num_coaches):
-        vehicles.append(_hslm_vehicle(N, D, d, P))
-    return vehicles
+    if train_name == "ChineseStar":
+        n_c = num_coaches if num_coaches is not None else 8
+        return [TrainProp_ChineseStarPowerCar() for _ in range(n_c)]
+    elif train_name == "ShinkansenS300":
+        n_c = num_coaches if num_coaches is not None else 16
+        return [TrainProp_ShinkansenS300() for _ in range(n_c)]
+    elif train_name == "Custom":
+        n_c = num_coaches if num_coaches is not None else 10
+        return [TrainProp_Custom() for _ in range(n_c)]
+    elif train_name in HSLM_PARAMS:
+        N, D, d, P = HSLM_PARAMS[train_name]
+        if num_coaches is None:
+            num_coaches = N
+        vehicles = []
+        for _ in range(num_coaches):
+            vehicles.append(_hslm_vehicle(N, D, d, P))
+        return vehicles
+    else:
+        # Fallback to A1
+        N, D, d, P = HSLM_PARAMS['A1']
+        return [_hslm_vehicle(N, D, d, P)]
+
+
+def TrainProp_ChineseStarPowerCar():
+    """Chinese Star power car (Zhai et al., 2009)."""
+    v = _make_veh()
+    v.Body.m = 59364.2
+    v.Body.I = 1.723e6
+    v.Body.L = 5.73 * 2
+    v.Body.Le = np.array([1, 1]) * (1.5 + 3 / 2)
+    v.Bogie.num = 2
+    v.Bogie.m = np.array([1, 1]) * 5630.8
+    v.Bogie.I = np.array([1, 1]) * 9487.0
+    v.Bogie.L = np.array([1, 1]) * 1.5 * 2
+    v.Wheels.num = 4
+    v.Wheels.m = np.array([1, 1, 1, 1]) * 1843.5
+    v.Susp.Prim.k = np.array([1, 1, 1, 1]) * 2.3996e6 * 2
+    v.Susp.Prim.c = np.array([1, 1, 1, 1]) * 30e3 * 2
+    v.Susp.Sec.k = np.array([1, 1]) * 0.8858e6 * 2
+    v.Susp.Sec.c = np.array([1, 1]) * 45e3 * 2
+    return _finalize_veh(v)
+
+
+def TrainProp_ShinkansenS300():
+    """Shinkansen S300 (Wu and Yang, 2003)."""
+    v = _make_veh()
+    v.Body.m = 41750.0
+    v.Body.I = 2080000.0
+    v.Body.L = 17.5
+    v.Body.Le = np.array([1, 1]) * (25 - 17.5) / 2
+    v.Bogie.num = 2
+    v.Bogie.m = np.array([1, 1]) * 3040.0
+    v.Bogie.I = np.array([1, 1]) * 3930.0
+    v.Bogie.L = np.array([1, 1]) * 2.5
+    v.Wheels.num = 4
+    v.Wheels.m = np.array([1, 1, 1, 1]) * 1780.0
+    v.Susp.Prim.k = np.array([1, 1, 1, 1]) * 1180e3
+    v.Susp.Prim.c = np.array([1, 1, 1, 1]) * 39.2e3
+    v.Susp.Sec.k = np.array([1, 1]) * 530e3
+    v.Susp.Sec.c = np.array([1, 1]) * 90.2e3
+    return _finalize_veh(v)
+
+
+def TrainProp_Custom(m_body=40000, L_body=15.0, m_bogie=3000, m_wheel=1500):
+    """Generic customizable train configuration for research setup."""
+    v = _make_veh()
+    v.Body.m = float(m_body)
+    v.Body.I = v.Body.m * (L_body ** 2 + 3 ** 2) / 12
+    v.Body.L = float(L_body)
+    v.Body.Le = np.array([1.5, 1.5])
+    v.Bogie.num = 2
+    v.Bogie.m = np.array([1, 1]) * float(m_bogie)
+    v.Bogie.I = np.array([1, 1]) * 4000.0
+    v.Bogie.L = np.array([1, 1]) * 2.5
+    v.Wheels.num = 4
+    v.Wheels.m = np.array([1, 1, 1, 1]) * float(m_wheel)
+    v.Susp.Prim.k = np.array([1, 1, 1, 1]) * 1200e3 * 2
+    v.Susp.Prim.c = np.array([1, 1, 1, 1]) * 4e3 * 2
+    v.Susp.Sec.k = np.array([1, 1]) * 430e3 * 2
+    v.Susp.Sec.c = np.array([1, 1]) * 20e3 * 2
+    return _finalize_veh(v)

@@ -64,6 +64,29 @@ class VibrationCheckResponse(BaseModel):
     f1_hz: float
 
 
+class DynamicSimRequest(BaseModel):
+    """Single-run Time-History simulation (1 train × 1 speed)."""
+    bridge: BridgeParams
+    train_name: str = Field("A1", description="Train type: A1..A10, ChineseStar, ShinkansenS300, Custom")
+    num_coaches: Optional[int] = Field(None, description="None = default")
+    vel_kmh: float = Field(300.0, description="Train velocity [km/h]")
+    custom_train_params: Optional[dict] = Field(None, description="Weights and lengths for Custom train option")
+
+
+class DynamicSimResponse(BaseModel):
+    """Synchronous response: time-history plots at mid-span."""
+    img_disp_time: str       # Base64 PNG — Displacement vs Time
+    img_acc_time: str        # Base64 PNG — Acceleration vs Time
+    max_disp_mm: float       # Maximum absolute displacement [mm]
+    max_acc_ms2: float       # Maximum absolute acceleration [m/s²]
+    duration_s: float        # Total simulation time [s]
+    status_text: str
+
+
+# ---------------------------------------------------------------------------
+# Legacy Sweep schemas (kept for backward compatibility; sweep is disabled)
+# ---------------------------------------------------------------------------
+
 class SweepRequest(BaseModel):
     bridge: BridgeParams
     train_names: List[str] = Field(

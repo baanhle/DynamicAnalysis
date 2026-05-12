@@ -276,6 +276,7 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
             Coup_A[:, t + 1] = Coup_U[:, t + 1] * NB[0] - A_vec
 
     # ---- Output generation ----
+    # Pre-merge moving train simulation stage
     for veh_num in range(num_veh):
         gi = Veh_list[veh_num].global_ind
         Sol.Veh[veh_num].U = Coup_U[gi, :]
@@ -284,5 +285,66 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
     Sol.Model.Nodal.U = Coup_U[global_ind_end:, :]
     Sol.Model.Nodal.V = Coup_V[global_ind_end:, :]
     Sol.Model.Nodal.A = Coup_A[global_ind_end:, :]
+
+    # ── Tail Simulation Stage (Free Vibration Decay) ──
+    # Integrate system matrices with zero input force for an additional 10.0s using a coarse step (dt_tail = 0.01s)
+    dt_tail = 0.01
+    tail_duration = 10.0
+    num_t_tail = int(tail_duration / dt_tail)
+
+    NB_tail = np.zeros(6)
+    NB_tail[0] = 1.0 / (beta * dt_tail ** 2)
+    NB_tail[1] = delta / (beta * dt_tail)
+    NB_tail[2] = 1.0 / (beta * dt_tail)
+    NB_tail[3] = 1.0 / (2 * beta) - 1.0
+    NB_tail[4] = 1.0 - delta / beta
+    NB_tail[5] = (1.0 - delta / (2 * beta)) * dt_tail
+
+    effKg_tail = UnCoup_Kg + NB_tail[0] * UnCoup_Mg + NB_tail[1] * UnCoup_Cg
+    effKg_tail = sparse.csc_matrix(effKg_tail)
+
+    # Initialize tail state from last frame of moving load stage
+    U_tail = np.zeros((Coup_DOF_Tnum, num_t_tail))
+    V_tail = np.zeros((Coup_DOF_Tnum, num_t_tail))
+    A_tail = np.zeros((Coup_DOF_Tnum, num_t_tail))
+
+    u_curr = Coup_U[:, -1].copy()
+    v_curr = Coup_V[:, -1].copy()
+    a_curr = Coup_A[:, -1].copy()
+
+    for t in range(num_t_tail):
+        A_vec = u_curr * NB_tail[0] + v_curr * NB_tail[2] + a_curr * NB_tail[3]
+        B_vec = NB_tail[1] * u_curr - NB_tail[4] * v_curr - NB_tail[5] * a_curr
+        rhs = UnCoup_Mg @ A_vec + UnCoup_Cg @ B_vec
+        rhs[BC_DOF_fixed] = 0
+
+        u_next = spsolve(effKg_tail, rhs)
+        v_next = NB_tail[1] * u_next - B_vec
+        a_next = u_next * NB_tail[0] - A_vec
+
+        U_tail[:, t] = u_next
+        V_tail[:, t] = v_next
+        A_tail[:, t] = a_next
+
+        u_curr, v_curr, a_curr = u_next, v_next, a_next
+
+    # Concatenate final structural trajectories
+    Sol.Model.Nodal.U = np.column_stack([Sol.Model.Nodal.U, U_tail[global_ind_end:, :]])
+    Sol.Model.Nodal.V = np.column_stack([Sol.Model.Nodal.V, V_tail[global_ind_end:, :]])
+    Sol.Model.Nodal.A = np.column_stack([Sol.Model.Nodal.A, A_tail[global_ind_end:, :]])
+
+    # Pad vehicle solution trajectories with terminal zeros to keep array dimensions globally uniform
+    for veh_num in range(num_veh):
+        n_vdof = Sol.Veh[veh_num].U.shape[0]
+        z_pad  = np.zeros((n_vdof, num_t_tail))
+        Sol.Veh[veh_num].U = np.column_stack([Sol.Veh[veh_num].U, z_pad])
+        Sol.Veh[veh_num].V = np.column_stack([Sol.Veh[veh_num].V, z_pad])
+        Sol.Veh[veh_num].A = np.column_stack([Sol.Veh[veh_num].A, z_pad])
+
+    # Store auxiliary tail timing sequence inside solver for plotting alignment
+    t_last = Calc.Solver.t[-1]
+    t_tail_arr = t_last + np.arange(1, num_t_tail + 1) * dt_tail
+    Calc.Solver.t = np.concatenate([Calc.Solver.t, t_tail_arr])
+    Calc.Solver.num_t = len(Calc.Solver.t)
 
     return Sol

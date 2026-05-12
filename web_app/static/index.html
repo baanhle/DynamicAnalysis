@@ -167,24 +167,63 @@
             </div>
           </div>
 
-          <!-- Card 2: Train Config -->
+          <!-- Card 2: Train & Velocity Config -->
           <div class="glass-card">
             <div class="card-header">
               <span class="card-icon">🚄</span>
               <span>Train Configuration — HSLM-A</span>
             </div>
 
-            <div class="checkbox-header">
-              <span class="field-label" style="margin:0">Chọn loại tàu</span>
-              <button class="btn-ghost" id="btn-select-all">Tích chọn tất cả</button>
-            </div>
-            <div class="train-grid" id="train-checkboxes">
-              <!-- injected by JS -->
+            <div class="field-row">
+              <label class="field-label" style="flex:1">
+                Loại đoàn tàu HSLM-A
+                <select id="train_name" class="field-input" style="border-color: var(--accent-1); color: var(--accent-1); font-weight: 600;" onchange="App.onTrainChange(this.value)">
+                  <option value="A1">HSLM A1 — 18 toa, D=18m, P=170kN</option>
+                  <option value="A2">HSLM A2 — 17 toa, D=19m, P=200kN</option>
+                  <option value="A3">HSLM A3 — 16 toa, D=20m, P=180kN</option>
+                  <option value="A4">HSLM A4 — 15 toa, D=21m, P=190kN</option>
+                  <option value="A5">HSLM A5 — 14 toa, D=22m, P=170kN</option>
+                  <option value="A6">HSLM A6 — 13 toa, D=23m, P=180kN</option>
+                  <option value="A7">HSLM A7 — 13 toa, D=24m, P=190kN</option>
+                  <option value="A8">HSLM A8 — 12 toa, D=25m, P=190kN</option>
+                  <option value="A9">HSLM A9 — 11 toa, D=26m, P=210kN</option>
+                  <option value="A10">HSLM A10 — 11 toa, D=27m, P=210kN</option>
+                  <option value="ChineseStar">🇨🇳 Chinese Star — Power Car (Zhai et al., 2009)</option>
+                  <option value="ShinkansenS300">🇯🇵 Shinkansen S300 (Wu &amp; Yang, 2003)</option>
+                  <option value="Custom">⚙️ Tự định nghĩa (Custom Setup)</option>
+                </select>
+              </label>
             </div>
 
-            <label class="field-label" style="margin-top:1.2rem">Số toa xe (trống = tiêu chuẩn EN)
-              <input id="num_coaches" type="number" class="field-input" placeholder="Mặc định" min="1" />
-            </label>
+            <!-- Custom train options panel -->
+            <div id="custom-train-panel" class="hidden" style="margin-top:0.8rem; padding:0.8rem; background:rgba(255,255,255,0.03); border-radius:8px; border:1px dashed #555;">
+              <div style="font-size:0.75rem; color:var(--accent-2); margin-bottom:0.5rem; text-transform:uppercase;">Thông số Tàu Tự Định Nghĩa</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                <label class="field-label" style="font-size:0.75rem">Khối lượng toa (kg)
+                  <input id="cust_m_body" type="number" class="field-input" value="40000" style="padding:0.3rem;" />
+                </label>
+                <label class="field-label" style="font-size:0.75rem">Chiều dài thân (m)
+                  <input id="cust_l_body" type="number" class="field-input" value="15.0" step="0.5" style="padding:0.3rem;" />
+                </label>
+                <label class="field-label" style="font-size:0.75rem">Khối lượng bogie (kg)
+                  <input id="cust_m_bogie" type="number" class="field-input" value="3000" style="padding:0.3rem;" />
+                </label>
+                <label class="field-label" style="font-size:0.75rem">Khối lượng trục (kg)
+                  <input id="cust_m_wheel" type="number" class="field-input" value="1500" style="padding:0.3rem;" />
+                </label>
+              </div>
+            </div>
+
+            <div class="field-row" style="margin-top:0.8rem">
+              <label class="field-label">Số toa xe (trống = tiêu chuẩn EN)
+                <input id="num_coaches" type="number" class="field-input" placeholder="Mặc định" min="1" />
+              </label>
+            </div>
+
+            <div style="margin-top:1.5rem; padding:1rem; background:rgba(0,212,255,0.06); border-radius:10px; border:1px solid rgba(0,212,255,0.2);">
+              <p style="margin:0 0 0.5rem 0; font-size:0.8rem; color:var(--accent-2); text-transform:uppercase; letter-spacing:0.08em;">💡 EN 1991-2 HSLM-A</p>
+              <p style="margin:0; font-size:0.82rem; color:#aaa; line-height:1.5;">Mô hình tải trọng tàu tốc độ cao theo Eurocode. Mỗi loại A1–A10 có bố cục trục và tải trọng khác nhau để bao quát phổ cộng hưởng của cầu.</p>
+            </div>
           </div>
         </div>
 
@@ -232,9 +271,9 @@
         </div>
       </section>
 
-      <!-- ===================== WINDOW 3: DYNAMIC SWEEP ===================== -->
+      <!-- ===================== WINDOW 3: DYNAMIC TIME-HISTORY ===================== -->
       <section id="tab-sweep" class="tab-pane">
-        <h2 class="section-title">Dynamic Sweep &amp; Plotting <span class="title-sub">— Phân tích Động lực học</span></h2>
+        <h2 class="section-title">Dynamic Time-History <span class="title-sub">— Mô phỏng Phản ứng Động lực học</span></h2>
 
         <div class="card-grid two-col">
 
@@ -242,68 +281,81 @@
           <div class="glass-card">
             <div class="card-header">
               <span class="card-icon">⚡</span>
-              <span>Dải vận tốc tính toán</span>
+              <span>Thông số Mô phỏng</span>
             </div>
-            <div class="field-row">
-              <label class="field-label">V_min (km/h)
-                <input id="v_min" type="number" class="field-input" value="250" step="10" />
-              </label>
-              <label class="field-label">V_max (km/h)
-                <input id="v_max" type="number" class="field-input" value="350" step="10" />
-              </label>
-              <label class="field-label">Bước V_step (km/h)
-                <input id="v_step" type="number" class="field-input" value="10" step="5" min="1" />
-              </label>
+
+            <label class="field-label" style="margin-bottom:1rem">Đoàn tàu
+              <div style="padding:0.6rem 0.8rem; background:rgba(255,255,255,0.05); border-radius:8px; border:1px solid rgba(0,212,255,0.3); color:var(--accent-2); font-weight:600; margin-top:0.3rem;" id="sim-train-display">HSLM A1</div>
+              <span style="font-size:0.75rem;color:#888;">(Chọn ở Window 1 → Tab ①)</span>
+            </label>
+
+            <label class="field-label">Vận tốc tính toán V (km/h)
+              <input id="sim_vel" type="number" class="field-input" value="300" step="10" min="50" max="500"
+                style="font-size:1.1rem; font-weight:700; border-color:var(--accent-1); color:var(--accent-1);" />
+            </label>
+
+            <div style="margin-top:1rem; padding:0.8rem; background:rgba(255,107,107,0.08); border-radius:8px; border:1px solid rgba(255,107,107,0.2);">
+              <p style="margin:0 0 0.4rem 0; font-size:0.8rem; color:#aaa; line-height:1.5;">
+                🎯 Mô phỏng tích phân thời gian Newmark-β cho 1 đoàn tàu tại 1 vận tốc. Kết quả gồm <strong style="color:#fff;">chuyển vị</strong> và <strong style="color:#fff;">gia tốc</strong> tại giữa nhịp theo thời gian thực.
+              </p>
+              <div style="border-top:1px dashed rgba(255,255,255,0.1); margin:0.5rem 0; padding-top:0.5rem;"></div>
+              <p style="margin:0; font-size:0.75rem; color:var(--accent-2); line-height:1.4;">
+                ⚠️ <strong style="color:#fff;">LƯU Ý LÝ THUYẾT:</strong> Hệ thống hiện tại giải quyết bài toán <strong>2D — 1 làn tàu chạy</strong>. Không xét đến trường hợp 2 làn tàu chạy đồng thời cũng như mô hình dầm không gian 3D. Khi có 2 làn tàu hoặc dầm mở rộng, bài toán không gian sẽ bao gồm cả <strong>độ lệch tâm của đoàn tàu</strong> so với trục dầm cầu, từ đó kích thích các mode dao động xoắn phức tạp hơn rất nhiều.
+              </p>
             </div>
 
             <div class="action-row" style="margin-top:1.5rem">
-              <button class="btn-gradient sweep-btn" id="btn-run-sweep">
-                ▶ Run Dynamic Sweep Analysis
-              </button>
-              <button class="btn-stop" id="btn-stop-sweep" disabled>
-                ■ Stop
+              <button class="btn-gradient sweep-btn" id="btn-run-sweep" onclick="App.runSweep()">
+                <span id="btn-sim-label">▶ Run Time-History Simulation</span>
               </button>
             </div>
           </div>
 
-          <!-- Progress card -->
+          <!-- Status card -->
           <div class="glass-card" id="progress-card">
             <div class="card-header">
               <span class="card-icon">📊</span>
-              <span>Tiến độ tính toán</span>
+              <span>Trạng thái &amp; Kết quả Tóm tắt</span>
             </div>
             <div id="progress-area" class="progress-area">
-              <p class="hint-text" id="progress-idle">Nhấn nút để bắt đầu phân tích...</p>
+              <p class="hint-text" id="progress-idle">Nhấn nút để bắt đầu mô phỏng...</p>
               <div id="progress-bar-wrap" class="hidden">
                 <div class="progress-bar-track">
-                  <div class="progress-bar-fill" id="progress-bar-fill"></div>
+                  <div class="progress-bar-fill" id="progress-bar-fill" style="width:0%"></div>
                 </div>
-                <p class="progress-label" id="progress-label">0%</p>
-                <p class="progress-status" id="progress-status">Đang chuẩn bị...</p>
+                <p class="progress-label" id="progress-label">Đang tính toán...</p>
+                <p class="progress-status" id="progress-status"></p>
               </div>
+            </div>
+
+            <!-- Summary stats -->
+            <div id="sim-stats" class="hidden" style="margin-top:1rem;">
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem;">
+                <div style="padding:0.8rem; background:rgba(0,212,255,0.08); border-radius:8px; border:1px solid rgba(0,212,255,0.2); text-align:center;">
+                  <div style="font-size:0.72rem; color:#888; text-transform:uppercase; margin-bottom:0.3rem;">Max Chuyển vị</div>
+                  <div id="stat-disp" style="font-size:1.3rem; font-weight:700; color:var(--accent-2);">— mm</div>
+                </div>
+                <div style="padding:0.8rem; background:rgba(255,107,107,0.08); border-radius:8px; border:1px solid rgba(255,107,107,0.2); text-align:center;">
+                  <div style="font-size:0.72rem; color:#888; text-transform:uppercase; margin-bottom:0.3rem;">Max Gia tốc</div>
+                  <div id="stat-acc" style="font-size:1.3rem; font-weight:700; color:#ff6b6b;">— m/s²</div>
+                </div>
+              </div>
+              <div id="stat-verdict" style="margin-top:0.8rem; padding:0.6rem 0.8rem; border-radius:8px; font-size:0.85rem;"></div>
             </div>
           </div>
         </div>
 
-        <!-- Results dashboard -->
+        <!-- Results dashboard: 2 large time-history charts -->
         <div id="results-dashboard" class="results-dashboard hidden">
-          <h3 class="section-subtitle">📈 Kết quả Phân tích Động lực học</h3>
-          <div class="chart-grid">
+          <h3 class="section-subtitle">📈 Kết quả Lịch sử Thời gian — Giữa nhịp</h3>
+          <div style="display:grid; grid-template-columns:1fr; gap:1.5rem;">
             <div class="chart-card glass-card">
-              <div class="chart-title">Võng giữa nhịp (Displacement)</div>
-              <img id="img-disp" class="result-img" alt="Displacement plot" />
+              <div class="chart-title">🔵 Chuyển vị giữa nhịp theo thời gian (mm)</div>
+              <img id="img-disp" class="result-img" alt="Displacement time-history" style="width:100%; border-radius:8px;" />
             </div>
             <div class="chart-card glass-card">
-              <div class="chart-title">Gia tốc dầm (Acceleration)</div>
-              <img id="img-acc" class="result-img" alt="Acceleration plot" />
-            </div>
-            <div class="chart-card glass-card">
-              <div class="chart-title">Tàu nguy hiểm nhất (Critical Train)</div>
-              <img id="img-worst" class="result-img" alt="Critical train plot" />
-            </div>
-            <div class="chart-card glass-card">
-              <div class="chart-title">Kiểm tra tần số (Frequency Check)</div>
-              <img id="img-freq" class="result-img" alt="Frequency plot" />
+              <div class="chart-title">🔴 Gia tốc giữa nhịp theo thời gian (m/s²) — Giới hạn EN 3.5 m/s²</div>
+              <img id="img-acc" class="result-img" alt="Acceleration time-history" style="width:100%; border-radius:8px;" />
             </div>
           </div>
         </div>

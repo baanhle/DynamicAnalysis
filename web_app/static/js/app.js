@@ -1,37 +1,19 @@
 /**
- * app.js – Frontend logic for HSLM Dynamic Analysis Web App
+ * app.js – Frontend logic for HSLM Dynamic Analysis Web App (v2)
+ * Window 3: Single Time-History Simulation (1 train × 1 velocity)
  */
 'use strict';
 
 const App = (() => {
-  const DYNAMIC_SWEEP_ENABLED = false;
-  // ── Train list ──────────────────────────────────────────────────────────
-  const TRAINS = ['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10'];
-  let _selectedTrains = new Set(TRAINS);
-  let _sweepJobId = null;
-  let _pollTimer = null;
-  let _beamData = {}; // Stores typical beam parameters from CSV
+  let _beamData = {};
 
   // ── Init ────────────────────────────────────────────────────────────────
   function init() {
-    _buildTrainCheckboxes();
     _bindTabs();
-    document.getElementById('btn-select-all').addEventListener('click', _toggleSelectAll);
-    document.getElementById('btn-run-vibration').addEventListener('click', runVibration);
-    document.getElementById('btn-run-sweep').addEventListener('click', runSweep);
-    document.getElementById('btn-stop-sweep').addEventListener('click', stopSweep);
-    document.getElementById('beam_type').addEventListener('change', _applyBeamType);
-
     _loadBeamPropCSV();
+    _bindTrainSelect();
 
-    if (!DYNAMIC_SWEEP_ENABLED) {
-      const sweepBtn = document.getElementById('btn-run-sweep');
-      const stopBtn = document.getElementById('btn-stop-sweep');
-      sweepBtn.disabled = true;
-      sweepBtn.textContent = 'Sweep Disabled';
-      stopBtn.disabled = true;
-      _showError('Dynamic Sweep đã bị tắt bởi quản trị viên để tránh quá tải server.');
-    }
+    document.getElementById('btn-run-vibration').addEventListener('click', runVibration);
 
     toggleProfileInputs();
   }
@@ -39,56 +21,37 @@ const App = (() => {
   // ── Profile UI Toggle ───────────────────────────────────────────────────
   function toggleProfileInputs() {
     const type = document.getElementById('profile_type').value;
-    const psdDiv = document.getElementById('psd-inputs');
+    const psdDiv  = document.getElementById('psd-inputs');
     const bumpDiv = document.getElementById('bump-inputs');
-
     if (!psdDiv || !bumpDiv) return;
-
     psdDiv.classList.add('hidden');
     bumpDiv.classList.add('hidden');
-
-    if (type === '1') {
-      psdDiv.classList.remove('hidden');
-    } else if (type === '3') {
-      bumpDiv.classList.remove('hidden');
-    }
+    if (type === '1') psdDiv.classList.remove('hidden');
+    else if (type === '3') bumpDiv.classList.remove('hidden');
   }
 
   // ── Beam Properties CSV ────────────────────────────────────────────────
   async function _loadBeamPropCSV() {
-    console.log("App: Loading beam_prop.csv...");
     try {
       const resp = await fetch('/static/beam_prop.csv');
-      if (!resp.ok) {
-        console.warn('App: Could not find beam_prop.csv (Status:', resp.status, ')');
-        return;
-      }
+      if (!resp.ok) return;
       const text = await resp.text();
       const lines = text.trim().split(/\r?\n/);
       if (lines.length < 2) return;
-
       const headers = lines[0].split(',').map(h => h.trim());
-      const select = document.getElementById('beam_type');
+      const select  = document.getElementById('beam_type');
       if (!select) return;
-
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim());
         if (values.length < headers.length) continue;
-
         const row = {};
-        headers.forEach((h, idx) => {
-          row[h] = values[idx];
-        });
-
+        headers.forEach((h, idx) => { row[h] = values[idx]; });
         _beamData[row.id] = row;
-
-        // Add to dropdown
         const opt = document.createElement('option');
         opt.value = row.id;
         opt.textContent = row.name;
         select.appendChild(opt);
       }
-      console.log(`App: Successfully loaded ${Object.keys(_beamData).length} typical sections.`);
     } catch (err) {
       console.error('App: Error loading beam_prop.csv:', err);
     }
@@ -99,22 +62,31 @@ const App = (() => {
     if (id === 'custom') return;
     const data = _beamData[id];
     if (!data) return;
-
-    // List of numeric fields to update
-    const fields = [
-      'L', 'E', 'Ixx', 'Iyy', 'Ixy', 'G', 'J', 
-      'I_theta', 'rho', 'I', 'damping_pct', 'ele_per_spacing'
-    ];
-
-    fields.forEach(f => {
+    ['L','E','Ixx','Iyy','Ixy','G','J','I_theta','rho','I','damping_pct','ele_per_spacing'].forEach(f => {
       const el = document.getElementById(f);
       if (el && data[f] !== undefined) {
         el.value = data[f];
-        // Add a subtle highlight effect
         el.classList.add('field-highlight');
         setTimeout(() => el.classList.remove('field-highlight'), 1000);
       }
     });
+  }
+
+  // ── Train select sync (Window 1 → Window 3 display) ────────────────────
+  function _bindTrainSelect() {
+    const sel = document.getElementById('train_name');
+    if (!sel) return;
+    sel.addEventListener('change', _syncTrainDisplay);
+    const beamSel = document.getElementById('beam_type');
+    if (beamSel) beamSel.addEventListener('change', _applyBeamType);
+  }
+
+  function _syncTrainDisplay() {
+    const sel     = document.getElementById('train_name');
+    const display = document.getElementById('sim-train-display');
+    if (!sel || !display) return;
+    const opt = sel.options[sel.selectedIndex];
+    display.textContent = opt ? opt.textContent : sel.value;
   }
 
   // ── Tabs ────────────────────────────────────────────────────────────────
@@ -129,54 +101,8 @@ const App = (() => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
     document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
-  }
-
-  // ── Train checkboxes ────────────────────────────────────────────────────
-  function _buildTrainCheckboxes() {
-    const container = document.getElementById('train-checkboxes');
-    if (!container) return;
-    container.innerHTML = '';
-    TRAINS.forEach(name => {
-      const label = document.createElement('label');
-      label.className = 'train-check-label checked';
-      label.dataset.train = name;
-
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.value = name;
-      cb.checked = true;
-      cb.addEventListener('change', () => {
-        if (cb.checked) {
-          _selectedTrains.add(name);
-          label.classList.add('checked');
-        } else {
-          _selectedTrains.delete(name);
-          label.classList.remove('checked');
-        }
-      });
-
-      label.appendChild(cb);
-      label.appendChild(document.createTextNode(name));
-      container.appendChild(label);
-    });
-  }
-
-  function _toggleSelectAll() {
-    const allChecked = _selectedTrains.size === TRAINS.length;
-    _selectedTrains = allChecked ? new Set() : new Set(TRAINS);
-    document.querySelectorAll('.train-check-label').forEach(label => {
-      const name = label.dataset.train;
-      const cb = label.querySelector('input');
-      if (_selectedTrains.has(name)) {
-        label.classList.add('checked');
-        cb.checked = true;
-      } else {
-        label.classList.remove('checked');
-        cb.checked = false;
-      }
-    });
-    document.getElementById('btn-select-all').textContent =
-      _selectedTrains.size === 0 ? 'Tích chọn tất cả' : 'Bỏ chọn tất cả';
+    // Sync train display when navigating to tab-sweep
+    if (tabId === 'tab-sweep') _syncTrainDisplay();
   }
 
   // ── Collect bridge params from form ─────────────────────────────────────
@@ -214,13 +140,11 @@ const App = (() => {
     btn.disabled = true;
     label.textContent = '⏳ Đang tính toán...';
 
-    const body = { bridge: _getBridgeParams(), n_modes: 3 };
-
     try {
       const resp = await fetch('/api/check-vibration', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ bridge: _getBridgeParams(), n_modes: 3 }),
       });
       if (!resp.ok) throw new Error(`Server error ${resp.status}`);
       const data = await resp.json();
@@ -237,16 +161,12 @@ const App = (() => {
     const tbody = document.getElementById('vib-table-body');
     tbody.innerHTML = '';
     const rows = data.mode_rows || [];
-
-    for (let i = 0; i < rows.length; i += 1) {
-      const m = rows[i];
+    for (const m of rows) {
       const typeLabel = m.mode_type.charAt(0).toUpperCase() + m.mode_type.slice(1);
       const modeLabel = `Mode ${m.mode_idx} - ${typeLabel}`;
-      
       const imgTag = m.img_mode_shape
         ? `<img class="mode-inline-img" alt="${modeLabel}" src="data:image/png;base64,${m.img_mode_shape}" />`
         : '<span class="hint-text">Không có dữ liệu</span>';
-        
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="white-space: nowrap;"><strong>${modeLabel}</strong></td>
@@ -264,40 +184,50 @@ const App = (() => {
       verdict.className = 'verdict-box ok';
       verdict.innerHTML = `<span class="verdict-icon">✅</span><span>${data.verdict_text}<br/>f1 governing = ${data.governing_f1_hz.toFixed(3)} Hz</span>`;
     }
-
     document.getElementById('vib-results').classList.remove('hidden');
   }
 
-  // ── Window 3: Dynamic Sweep ──────────────────────────────────────────────
+  function onTrainChange(val) {
+    const p = document.getElementById('custom-train-panel');
+    if (!p) return;
+    if (val === 'Custom') p.classList.remove('hidden');
+    else p.classList.add('hidden');
+    _syncTrainDisplay();
+  }
+
+  // ── Window 3: Time-History Simulation ────────────────────────────────────
   async function runSweep() {
-    if (!DYNAMIC_SWEEP_ENABLED) {
-      _showError('Dynamic Sweep đang bị tắt bởi quản trị viên.');
-      return;
-    }
+    const btn      = document.getElementById('btn-run-sweep');
+    const simLabel = document.getElementById('btn-sim-label');
+    const errBox   = document.getElementById('sweep-error');
 
-    if (_selectedTrains.size === 0) {
-      alert('Vui lòng chọn ít nhất một loại tàu HSLM.');
-      return;
-    }
-
-    const sweepBtn = document.getElementById('btn-run-sweep');
-    const stopBtn = document.getElementById('btn-stop-sweep');
-    sweepBtn.disabled = true;
-    stopBtn.disabled = false;
-
+    btn.disabled = true;
+    if (simLabel) simLabel.textContent = '⏳ Đang tính toán...';
+    errBox.classList.add('hidden');
     document.getElementById('results-dashboard').classList.add('hidden');
-    document.getElementById('sweep-error').classList.add('hidden');
+    document.getElementById('sim-stats').classList.add('hidden');
     _showProgress(true);
+    _updateProgressUI(0.3, 'Đang chạy mô phỏng Newmark-β...');
 
+    const trainName  = document.getElementById('train_name').value;
+    const velKmh     = parseFloat(document.getElementById('sim_vel').value) || 300;
     const numCoaches = parseInt(document.getElementById('num_coaches').value) || null;
+
     const body = {
       bridge:      _getBridgeParams(),
-      train_names: [..._selectedTrains],
+      train_name:  trainName,
       num_coaches: numCoaches,
-      v_min_kmh:   parseFloat(document.getElementById('v_min').value) || 250,
-      v_max_kmh:   parseFloat(document.getElementById('v_max').value) || 350,
-      v_step_kmh:  parseFloat(document.getElementById('v_step').value) || 10,
+      vel_kmh:     velKmh,
     };
+
+    if (trainName === 'Custom') {
+      body.custom_train_params = {
+        m_body:  parseFloat(document.getElementById('cust_m_body').value)  || 40000,
+        L_body:  parseFloat(document.getElementById('cust_l_body').value)  || 15.0,
+        m_bogie: parseFloat(document.getElementById('cust_m_bogie').value) || 3000,
+        m_wheel: parseFloat(document.getElementById('cust_m_wheel').value) || 1500,
+      };
+    }
 
     try {
       const resp = await fetch('/api/run-dynamic', {
@@ -305,84 +235,60 @@ const App = (() => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!resp.ok) throw new Error(`Server error ${resp.status}`);
-      const data = await resp.json();
-      _sweepJobId = data.job_id;
-      _startPolling(sweepBtn, stopBtn);
-    } catch (err) {
-      _showError('Lỗi khởi động phân tích: ' + err.message);
-      sweepBtn.disabled = false;
-      stopBtn.disabled = true;
-    }
-  }
 
-  async function stopSweep() {
-    if (!_sweepJobId) return;
-    const stopBtn = document.getElementById('btn-stop-sweep');
-    stopBtn.disabled = true;
-    try {
-      const resp = await fetch(`/api/stop-dynamic/${_sweepJobId}`, { method: 'POST' });
-      if (!resp.ok) throw new Error(`Server error ${resp.status}`);
-      _updateProgressUI(0, 'Đang gửi yêu cầu dừng...');
-    } catch (err) {
-      _showError('Không thể dừng tác vụ: ' + err.message);
-      stopBtn.disabled = false;
-    }
-  }
-
-  function _startPolling(sweepBtn, stopBtn) {
-    clearInterval(_pollTimer);
-    _pollTimer = setInterval(() => _pollStatus(sweepBtn, stopBtn), 1500);
-  }
-
-  async function _pollStatus(sweepBtn, stopBtn) {
-    if (!_sweepJobId) return;
-    try {
-      const resp = await fetch(`/api/status/${_sweepJobId}`);
       if (!resp.ok) {
-        if (resp.status === 404) {
-          clearInterval(_pollTimer);
-          _pollTimer = null;
-          _sweepJobId = null;
-          _showProgress(false);
-          _showError('Tác vụ đã hết hạn hoặc server vừa khởi động lại. Vui lòng chạy lại phân tích.');
-          sweepBtn.disabled = false;
-          stopBtn.disabled = true;
-        }
-        return;
+        const detail = await resp.json().catch(() => ({}));
+        throw new Error(detail.detail || `Server error ${resp.status}`);
       }
+
       const data = await resp.json();
-
-      _updateProgressUI(data.progress, data.status_text);
-
-      if (data.status === 'done') {
-        clearInterval(_pollTimer);
-        _pollTimer = null;
-        _sweepJobId = null;
-        _updateProgressUI(1.0, 'Hoàn thành! ✅');
-        _renderSweepResults(data);
-        sweepBtn.disabled = false;
-        stopBtn.disabled = true;
-      } else if (data.status === 'cancelled') {
-        clearInterval(_pollTimer);
-        _pollTimer = null;
-        _sweepJobId = null;
-        _showProgress(false);
-        _showError('Đã dừng tính toán theo yêu cầu.');
-        sweepBtn.disabled = false;
-        stopBtn.disabled = true;
-      } else if (data.status === 'error') {
-        clearInterval(_pollTimer);
-        _pollTimer = null;
-        _sweepJobId = null;
-        _showProgress(false);
-        _showError('Lỗi tính toán: ' + (data.error_msg || 'Unknown error'));
-        sweepBtn.disabled = false;
-        stopBtn.disabled = true;
-      }
+      _updateProgressUI(1.0, data.status_text || 'Hoàn thành! ✅');
+      _renderSimResults(data);
     } catch (err) {
-      // Network hiccup – keep polling
+      _showError('Lỗi mô phỏng: ' + err.message);
+      _showProgress(false);
+    } finally {
+      btn.disabled = false;
+      if (simLabel) simLabel.textContent = '▶ Run Time-History Simulation';
     }
+  }
+
+  function _renderSimResults(data) {
+    // Update charts
+    const setImg = (id, b64) => {
+      if (!b64) return;
+      const el = document.getElementById(id);
+      if (el) el.src = 'data:image/png;base64,' + b64;
+    };
+    setImg('img-disp', data.img_disp_time);
+    setImg('img-acc',  data.img_acc_time);
+
+    // Update stats panel
+    const statDisp = document.getElementById('stat-disp');
+    const statAcc  = document.getElementById('stat-acc');
+    const statVerdict = document.getElementById('stat-verdict');
+
+    if (statDisp) statDisp.textContent = `${data.max_disp_mm.toFixed(2)} mm`;
+    if (statAcc)  statAcc.textContent  = `${data.max_acc_ms2.toFixed(3)} m/s²`;
+
+    // EN 1991-2 acceleration verdict
+    if (statVerdict) {
+      if (data.max_acc_ms2 > 3.5) {
+        statVerdict.style.cssText = 'background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.4);color:#ff6b6b;';
+        statVerdict.textContent = `🚨 Gia tốc vượt giới hạn EN 1991-2 (3.5 m/s²)! Cần xem xét lại kết cấu.`;
+      } else {
+        statVerdict.style.cssText = 'background:rgba(0,255,120,0.1);border:1px solid rgba(0,255,120,0.3);color:#00ff78;';
+        statVerdict.textContent = `✅ Gia tốc thỏa mãn EN 1991-2 (${data.max_acc_ms2.toFixed(3)} < 3.5 m/s²)`;
+      }
+    }
+
+    document.getElementById('sim-stats').classList.remove('hidden');
+    document.getElementById('results-dashboard').classList.remove('hidden');
+    _showProgress(false);
+  }
+
+  function stopSweep() {
+    // No-op for single simulation (not needed)
   }
 
   function _showProgress(show) {
@@ -393,21 +299,9 @@ const App = (() => {
   function _updateProgressUI(progress, text) {
     const pct = Math.round(progress * 100);
     document.getElementById('progress-bar-fill').style.width = pct + '%';
-    document.getElementById('progress-label').textContent = pct + '%';
-    document.getElementById('progress-status').textContent = text;
-  }
-
-  function _renderSweepResults(data) {
-    const setImg = (id, b64) => {
-      if (!b64) return;
-      const el = document.getElementById(id);
-      if (el) el.src = 'data:image/png;base64,' + b64;
-    };
-    setImg('img-disp',  data.img_disp);
-    setImg('img-acc',   data.img_acc);
-    setImg('img-worst', data.img_worst);
-    setImg('img-freq',  data.img_freq);
-    document.getElementById('results-dashboard').classList.remove('hidden');
+    document.getElementById('progress-label').textContent = text || (pct + '%');
+    const statusEl = document.getElementById('progress-status');
+    if (statusEl) statusEl.textContent = '';
   }
 
   function _showError(msg) {
@@ -418,12 +312,14 @@ const App = (() => {
     }
   }
 
-  return { 
+  return {
     init,
     goToTab,
     runSweep,
     stopSweep,
-    toggleProfileInputs
+    toggleProfileInputs,
+    onTrainChange,
+    _syncTrainDisplay,
   };
 })();
 

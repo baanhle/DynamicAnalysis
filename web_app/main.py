@@ -7,11 +7,11 @@ Run with:
 """
 from __future__ import annotations
 
-import uuid
 import traceback
 import threading
 import queue
 import multiprocessing as mp
+import uuid
 from pathlib import Path
 from typing import Dict
 
@@ -24,56 +24,50 @@ from web_app.schemas import (
     VibrationCheckResponse,
     ModeResult,
     ModeDisplayRow,
+    DynamicSimRequest,
+    DynamicSimResponse,
     SweepRequest,
     SweepJobResponse,
     JobStatusResponse,
 )
-from web_app.core_worker import check_free_vibration, run_dynamic_sweep
+from web_app.core_worker import check_free_vibration, run_single_simulation, run_dynamic_sweep
 
 # ---------------------------------------------------------------------------
 # App setup
 # ---------------------------------------------------------------------------
-app = FastAPI(title="HSLM Dynamic Analysis", version="1.0.0")
-
-# Safety switch for public deployment: disable heavy dynamic sweep to avoid
-# server overload when many external users trigger concurrent runs.
-DYNAMIC_SWEEP_ENABLED = False
+app = FastAPI(title="HSLM Dynamic Analysis", version="2.0.0")
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+# Heavy multi-train sweep is disabled on cloud to avoid overload.
+# The new single-run simulation endpoint is always enabled.
+DYNAMIC_SWEEP_ENABLED = False
+
 # ---------------------------------------------------------------------------
-# In-memory job store  (sufficient for a single-user local app)
+# In-memory job store (legacy sweep – kept for local use)
 # ---------------------------------------------------------------------------
 _jobs: Dict[str, dict] = {}
 
 
 def _sweep_worker_entry(params: dict, progress_queue):
-    """Runs in a child process; communicates progress/results via Queue."""
     try:
-        def _progress(prog: float, text: str):
+        def _progress(prog, text):
             progress_queue.put({"type": "progress", "progress": float(prog), "status_text": str(text)})
-
         output = run_dynamic_sweep(params, update_cb=_progress)
-        progress_queue.put(
-            {
-                "type": "done",
-                "img_disp": output["img_disp"],
-                "img_acc": output["img_acc"],
-                "img_worst": output["img_worst"],
-                "img_freq": output["img_freq"],
-            }
-        )
+        progress_queue.put({
+            "type": "done",
+            "img_disp": output["img_disp"], "img_acc": output["img_acc"],
+            "img_worst": output["img_worst"], "img_freq": output["img_freq"],
+        })
     except Exception:
         progress_queue.put({"type": "error", "error_msg": traceback.format_exc()})
 
 
 def _monitor_sweep_process(job_id: str):
-    """Monitors a child sweep process and updates in-memory job status."""
     job = _jobs.get(job_id)
     if job is None:
         return
-
     proc = job.get("_process")
     progress_queue = job.get("_queue")
     if proc is None or progress_queue is None:
@@ -85,7 +79,6 @@ def _monitor_sweep_process(job_id: str):
     while True:
         if job.get("status") == "cancelled":
             break
-
         try:
             msg = progress_queue.get(timeout=0.5)
         except queue.Empty:
@@ -101,21 +94,16 @@ def _monitor_sweep_process(job_id: str):
         if mtype == "progress":
             if job.get("status") != "cancelled":
                 job["status"] = "running"
-                job["progress"] = float(msg.get("progress", job.get("progress", 0.0)))
-                job["status_text"] = msg.get("status_text", job.get("status_text", "Đang tính toán..."))
+                job["progress"] = float(msg.get("progress", 0.0))
+                job["status_text"] = msg.get("status_text", "Đang tính toán...")
         elif mtype == "done":
-            job["status"] = "done"
-            job["progress"] = 1.0
-            job["status_text"] = "Hoàn thành!"
-            job["img_disp"] = msg.get("img_disp")
-            job["img_acc"] = msg.get("img_acc")
-            job["img_worst"] = msg.get("img_worst")
-            job["img_freq"] = msg.get("img_freq")
+            job.update({"status": "done", "progress": 1.0, "status_text": "Hoàn thành!",
+                        "img_disp": msg.get("img_disp"), "img_acc": msg.get("img_acc"),
+                        "img_worst": msg.get("img_worst"), "img_freq": msg.get("img_freq")})
             break
         elif mtype == "error":
-            job["status"] = "error"
-            job["status_text"] = "Lỗi xảy ra trong quá trình tính toán."
-            job["error_msg"] = msg.get("error_msg", "Unknown worker error")
+            job.update({"status": "error", "status_text": "Lỗi xảy ra trong quá trình tính toán.",
+                        "error_msg": msg.get("error_msg", "Unknown worker error")})
             break
 
     if proc.is_alive():
@@ -152,91 +140,93 @@ async def api_check_vibration(body: VibrationCheckRequest):
     )
 
 
-@app.post("/api/run-dynamic", response_model=SweepJobResponse)
-async def api_run_dynamic(body: SweepRequest):
-    """Starts the heavy sweep in a child process and returns a job_id immediately."""
+@app.post("/api/run-dynamic", response_model=DynamicSimResponse)
+async def api_run_dynamic(body: DynamicSimRequest):
+    """
+    Synchronous single-train Time-History simulation.
+    Runs in a background thread to avoid blocking the async event loop.
+    """
+    import asyncio
+
+    params = {
+        "bridge_p":    body.bridge.model_dump(),
+        "track_type":  body.bridge.track_type,
+        "train_name":  body.train_name,
+        "num_coaches": body.num_coaches,
+        "vel_kmh":     body.vel_kmh,
+    }
+
+    loop = asyncio.get_event_loop()
+    try:
+        # run_in_executor with None = default ThreadPoolExecutor
+        result = await loop.run_in_executor(None, run_single_simulation, params)
+    except Exception:
+        raise HTTPException(status_code=500, detail=traceback.format_exc())
+
+    return DynamicSimResponse(
+        img_disp_time=result["img_disp_time"],
+        img_acc_time=result["img_acc_time"],
+        max_disp_mm=result["max_disp_mm"],
+        max_acc_ms2=result["max_acc_ms2"],
+        duration_s=result["duration_s"],
+        status_text=result["status_text"],
+    )
+
+
+@app.post("/api/run-sweep", response_model=SweepJobResponse)
+async def api_run_sweep(body: SweepRequest):
+    """Legacy heavy sweep – disabled on cloud deployment."""
     if not DYNAMIC_SWEEP_ENABLED:
-        raise HTTPException(status_code=503, detail="Dynamic sweep is temporarily disabled by administrator")
+        raise HTTPException(status_code=503, detail="Dynamic sweep is disabled on this server.")
 
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {
-        "status": "queued",
-        "progress": 0.0,
-        "status_text": "Đang xếp hàng...",
-        "img_disp": None,
-        "img_acc": None,
-        "img_worst": None,
-        "img_freq": None,
-        "error_msg": None,
-        "_process": None,
-        "_queue": None,
+        "status": "queued", "progress": 0.0, "status_text": "Đang xếp hàng...",
+        "img_disp": None, "img_acc": None, "img_worst": None, "img_freq": None,
+        "error_msg": None, "_process": None, "_queue": None,
     }
-
     params = {
-        "bridge_p": body.bridge.model_dump(),
-        "track_type": body.bridge.track_type,
-        "train_names": body.train_names,
-        "num_coaches": body.num_coaches,
-        "v_min_kmh": body.v_min_kmh,
-        "v_max_kmh": body.v_max_kmh,
-        "v_step_kmh": body.v_step_kmh,
-        # Avoid creating too many workers on large-core machines; local solver
-        # runs are heavy and usually scale best with a moderate process count.
+        "bridge_p": body.bridge.model_dump(), "track_type": body.bridge.track_type,
+        "train_names": body.train_names, "num_coaches": body.num_coaches,
+        "v_min_kmh": body.v_min_kmh, "v_max_kmh": body.v_max_kmh, "v_step_kmh": body.v_step_kmh,
         "max_workers": min(20, max(1, (mp.cpu_count() or 2) - 1)),
     }
-
     ctx = mp.get_context("spawn")
-    progress_queue = ctx.Queue()
-    proc = ctx.Process(target=_sweep_worker_entry, args=(params, progress_queue))
+    pq = ctx.Queue()
+    proc = ctx.Process(target=_sweep_worker_entry, args=(params, pq))
     proc.start()
-
     _jobs[job_id]["_process"] = proc
-    _jobs[job_id]["_queue"] = progress_queue
-
-    monitor = threading.Thread(target=_monitor_sweep_process, args=(job_id,), daemon=True)
-    monitor.start()
-
+    _jobs[job_id]["_queue"] = pq
+    threading.Thread(target=_monitor_sweep_process, args=(job_id,), daemon=True).start()
     return SweepJobResponse(job_id=job_id)
 
 
 @app.post("/api/stop-dynamic/{job_id}")
 async def api_stop_dynamic(job_id: str):
-    """Hard stop a running dynamic sweep (similar to Ctrl+C in terminal)."""
     if not DYNAMIC_SWEEP_ENABLED:
-        raise HTTPException(status_code=503, detail="Dynamic sweep is currently disabled")
-
+        raise HTTPException(status_code=503, detail="Sweep is disabled.")
     job = _jobs.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-
     if job["status"] in {"done", "error", "cancelled"}:
-        return {"job_id": job_id, "status": job["status"], "status_text": job["status_text"]}
-
+        return {"job_id": job_id, "status": job["status"]}
     proc = job.get("_process")
-    if proc is not None and proc.is_alive():
+    if proc and proc.is_alive():
         proc.terminate()
         proc.join(timeout=2.0)
-
     job["status"] = "cancelled"
     job["status_text"] = "Đã dừng tính toán theo yêu cầu người dùng."
-    return {"job_id": job_id, "status": job["status"], "status_text": job["status_text"]}
+    return {"job_id": job_id, "status": "cancelled"}
 
 
 @app.get("/api/status/{job_id}", response_model=JobStatusResponse)
 async def api_job_status(job_id: str):
-    """Poll endpoint for sweep progress and results."""
     job = _jobs.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-
     return JobStatusResponse(
-        job_id=job_id,
-        status=job["status"],
-        progress=job["progress"],
-        status_text=job["status_text"],
-        img_disp=job.get("img_disp"),
-        img_acc=job.get("img_acc"),
-        img_worst=job.get("img_worst"),
-        img_freq=job.get("img_freq"),
-        error_msg=job.get("error_msg"),
+        job_id=job_id, status=job["status"], progress=job["progress"],
+        status_text=job["status_text"], img_disp=job.get("img_disp"),
+        img_acc=job.get("img_acc"), img_worst=job.get("img_worst"),
+        img_freq=job.get("img_freq"), error_msg=job.get("error_msg"),
     )
