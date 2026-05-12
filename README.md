@@ -1,9 +1,7 @@
-# TTB-2D Python Version
+# Train–Track–Bridge 2D Python Version
 
 **Train–Track–Bridge 2D Dynamic Interaction Simulation**
 
-Python port of the MATLAB TTB-2D tool originally developed by **Daniel Cantero** (NTNU, Norway).  
-Original publication: *SoftwareX*, 2022, doi: [10.1016/j.softx.2022.101221](https://doi.org/10.1016/j.softx.2022.101221)  
 License: GNU General Public License v3.0
 
 ---
