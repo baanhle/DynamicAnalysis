@@ -91,7 +91,9 @@ Trong trường hợp này, tà vẹt được đặt trực tiếp lên dầm c
 
 Phương trình vi phân chuyển động của một hệ cơ học có nhiều bậc tự do (MDOF) biểu diễn sự tương tác động lực học được viết dưới dạng ma trận như sau:
 
-$$[M]\{\ddot{x}\} + [C]\{\dot{x}\} + [K]\{x\} = \{F(t)\}$$
+$$
+[M]\{\ddot{x}\} + [C]\{\dot{x}\} + [K]\{x\} = \{F(t)\}
+$$
 
 Trong đó:
 - $[M]$: Ma trận khối lượng của hệ thống (Mass matrix).
@@ -105,10 +107,16 @@ Trong đó:
 Khi tàu chạy trên đường ray hoặc cầu, hệ thống tổng thể được chia thành hai hệ thống con (Subsystems) tương tác qua lại lẫn nhau thông qua **lực tiếp xúc (Contact forces - $F_c$)** tại vị trí bánh xe. Phương trình chuyển động của từng hệ thống con được định nghĩa:
 
 **Đối với hệ thống Phương tiện (Tàu):**
-$$[M_v]\{\ddot{x}_v\} + [C_v]\{\dot{x}_v\} + [K_v]\{x_v\} = \{F_{ext,v}\} - \{F_c\}$$
+
+$$
+[M_v]\{\ddot{x}_v\} + [C_v]\{\dot{x}_v\} + [K_v]\{x_v\} = \{F_{ext,v}\} - \{F_c\}
+$$
 
 **Đối với hệ thống Hạ tầng (Đường ray / Cầu):**
-$$[M_b]\{\ddot{x}_b\} + [C_b]\{\dot{x}_b\} + [K_b]\{x_b\} = \{F_{ext,b}\} + \{F_c\}$$
+
+$$
+[M_b]\{\ddot{x}_b\} + [C_b]\{\dot{x}_b\} + [K_b]\{x_b\} = \{F_{ext,b}\} + \{F_c\}
+$$
 
 Trong đó:
 - Chỉ số $v$ (vehicle) và $b$ (bridge/track) đại diện cho các ma trận của tàu và kết cấu bên dưới.
@@ -120,7 +128,9 @@ Sự di chuyển của lực tiếp xúc $\{F_c\}$ dọc theo chiều dài cầu
 
 Để tính toán sự kết hợp (coupled system) của hai phương trình trên, TTB-2D gộp chúng lại thành một hệ phương trình ma trận đồ sộ:
 
-$$ \begin{bmatrix} M_v & 0 \\ 0 & M_b \end{bmatrix} \begin{Bmatrix} \ddot{x}_v \\ \ddot{x}_b \end{Bmatrix} + \begin{bmatrix} C_v & C_{v,b} \\ C_{b,v} & C_b \end{bmatrix} \begin{Bmatrix} \dot{x}_v \\ \dot{x}_b \end{Bmatrix} + \begin{bmatrix} K_v & K_{v,b} \\ K_{b,v} & K_b \end{bmatrix} \begin{Bmatrix} x_v \\ x_b \end{Bmatrix} = \begin{Bmatrix} F_v \\ F_b \end{Bmatrix} $$
+$$
+\begin{bmatrix} M_v & 0 \\ 0 & M_b \end{bmatrix} \begin{Bmatrix} \ddot{x}_v \\ \ddot{x}_b \end{Bmatrix} + \begin{bmatrix} C_v & C_{v,b} \\ C_{b,v} & C_b \end{bmatrix} \begin{Bmatrix} \dot{x}_v \\ \dot{x}_b \end{Bmatrix} + \begin{bmatrix} K_v & K_{v,b} \\ K_{b,v} & K_b \end{bmatrix} \begin{Bmatrix} x_v \\ x_b \end{Bmatrix} = \begin{Bmatrix} F_v \\ F_b \end{Bmatrix}
+$$
 
 **Chiến lược Tích phân Hai giai đoạn (Dual-Stage Simulation Protocol):**
 Để giải quyết bài toán tối ưu hóa tài nguyên tính toán trên nền tảng đám mây nhưng vẫn thu thập đầy đủ dữ liệu quan sát dao động của kết cấu, giải thuật tích phân thời gian **Newmark-$\beta$** được tối ưu hóa thành chuỗi hai bước liên tiếp:
