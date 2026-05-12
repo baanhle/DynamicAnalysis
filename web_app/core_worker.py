@@ -53,7 +53,7 @@ def _make_beam(p: dict) -> types.SimpleNamespace:
     Beam.BC.text = "SP"
     Beam.Mesh = types.SimpleNamespace()
     Beam.Mesh.Ele = types.SimpleNamespace()
-    Beam.Mesh.Ele.num_per_spacing = int(p.get("ele_per_spacing", 2))
+    Beam.Mesh.Ele.num_per_spacing = int(p.get("ele_per_spacing", 1))
     return Beam
 
 
@@ -67,7 +67,8 @@ def _make_calc(p: dict = None) -> types.SimpleNamespace:
     Calc = types.SimpleNamespace()
     Calc.Profile = types.SimpleNamespace()
     Calc.Profile.Type = 0
-    Calc.Profile.minL_Approach = 20
+    # Reduce approach length to bare minimum to drastically shrink rail/sleeper/ballast global DOFs
+    Calc.Profile.minL_Approach = 2.4
 
     if p:
         Calc.Profile.Type = int(p.get("type", 0))
@@ -84,6 +85,11 @@ def _make_calc(p: dict = None) -> types.SimpleNamespace:
     Calc.Options.VBI = 1
     Calc.Options.calc_model_frq = 0
     Calc.Options.calc_model_modes = 0
+    
+    # Aggressively coarse integration step limits for real-time web application feedback
+    Calc.Options.beam_frq_factor = 4.0
+    Calc.Options.veh_frq_factor  = 4.0
+    Calc.Options.min_Nele        = 1.0
     return Calc
 
 
