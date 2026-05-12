@@ -212,7 +212,7 @@ const App = (() => {
     const trainName  = document.getElementById('train_name').value;
     const velKmh     = parseFloat(document.getElementById('sim_vel').value) || 300;
     const numCoaches = parseInt(document.getElementById('num_coaches').value) || null;
-    const fastMode   = !!document.getElementById('sim_fast_mode')?.checked;
+    const fastMode   = true;
 
     const body = {
       bridge:      _getBridgeParams(),
