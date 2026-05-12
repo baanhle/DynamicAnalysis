@@ -37,7 +37,7 @@ def make_beam():
     Beam.BC.text = 'SP'
     Beam.Mesh = types.SimpleNamespace()
     Beam.Mesh.Ele = types.SimpleNamespace()
-    Beam.Mesh.Ele.num_per_spacing = 2
+    Beam.Mesh.Ele.num_per_spacing = 1
     return Beam
 
 
@@ -54,12 +54,15 @@ def make_calc():
     Calc = types.SimpleNamespace()
     Calc.Profile = types.SimpleNamespace()
     Calc.Profile.Type = 0
-    Calc.Profile.minL_Approach = 20
+    Calc.Profile.minL_Approach = 2.4
     Calc.Options = types.SimpleNamespace()
     Calc.Options.redux = 1
     Calc.Options.VBI = 1
     Calc.Options.calc_model_frq = 0
     Calc.Options.calc_model_modes = 0
+    Calc.Options.beam_frq_factor = 4.0
+    Calc.Options.veh_frq_factor  = 4.0
+    Calc.Options.min_Nele        = 1.0
     return Calc
 
 
