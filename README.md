@@ -129,7 +129,37 @@ Sự di chuyển của lực tiếp xúc $\{F_c\}$ dọc theo chiều dài cầu
 Để tính toán sự kết hợp (coupled system) của hai phương trình trên, TTB-2D gộp chúng lại thành một hệ phương trình ma trận đồ sộ:
 
 $$
-\begin{bmatrix} M_v & 0 \\ 0 & M_b \end{bmatrix} \begin{Bmatrix} \ddot{x}_v \\ \ddot{x}_b \end{Bmatrix} + \begin{bmatrix} C_v & C_{v,b} \\ C_{b,v} & C_b \end{bmatrix} \begin{Bmatrix} \dot{x}_v \\ \dot{x}_b \end{Bmatrix} + \begin{bmatrix} K_v & K_{v,b} \\ K_{b,v} & K_b \end{bmatrix} \begin{Bmatrix} x_v \\ x_b \end{Bmatrix} = \begin{Bmatrix} F_v \\ F_b \end{Bmatrix}
+\begin{bmatrix}
+M_v & 0 \\
+0 & M_b
+\end{bmatrix}
+\begin{Bmatrix}
+\ddot{x}_v \\
+\ddot{x}_b
+\end{Bmatrix}
++
+\begin{bmatrix}
+C_v & C_{v,b} \\
+C_{b,v} & C_b
+\end{bmatrix}
+\begin{Bmatrix}
+\dot{x}_v \\
+\dot{x}_b
+\end{Bmatrix}
++
+\begin{bmatrix}
+K_v & K_{v,b} \\
+K_{b,v} & K_b
+\end{bmatrix}
+\begin{Bmatrix}
+x_v \\
+x_b
+\end{Bmatrix}
+=
+\begin{Bmatrix}
+F_v \\
+F_b
+\end{Bmatrix}
 $$
 
 **Chiến lược Tích phân Hai giai đoạn (Dual-Stage Simulation Protocol):**
