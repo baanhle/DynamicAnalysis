@@ -255,6 +255,8 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
 
             for veh_num in range(num_veh):
                 veh = Veh_list[veh_num]
+                ks = veh.ktn
+                cs = veh.ctn
                 cv = Calc.Veh[veh_num]
                 for wheel in range(veh.Wheels.num):
                     ele_num = cv.elexj[wheel, t + 1]
@@ -264,7 +266,11 @@ def B65_DynamicCalcCoupledFaster(Veh_list, Model, Calc, Track, Sol):
                     a = Track.Rail.Mesh.Ele.a[ele_num]
                     sfx = shape_fun(x, a).flatten()
                     col_dof = global_ind_end + ele_DOF[ele_num, :]
-                    Coup_F[col_dof] = veh.sta_loads[wheel] * sfx
+                    # Moving force with profile perturbation: F = F_static - (ks*h + cs*hd)
+                    h_path = cv.h_path[wheel, t + 1]
+                    hd_path = cv.hd_path[wheel, t + 1]
+                    f_wheel = veh.sta_loads[wheel] - (ks[wheel] * h_path + cs[wheel] * hd_path)
+                    Coup_F[col_dof] += f_wheel * sfx
 
             Coup_F[BC_DOF_fixed] = 0
 

@@ -101,19 +101,43 @@ HSLM_PARAMS = {
 }
 
 
+def TrainProp_EMU():
+    """Electric Multiple Unit (EMU) train - Chinese CR400 AF/BF high-speed train (250-350 km/h)."""
+    v = _make_veh()
+    # CR400: 8-coach train with axle load 17t, total mass ~68t/coach
+    v.Body.m = 50000.0  # kg (car body)
+    v.Body.I = 2850000.0  # kg·m²
+    v.Body.L = 26.0  # m (coach length: 209m / 8 coaches)
+    v.Body.Le = np.array([1.5, 1.5])
+    v.Bogie.num = 2
+    v.Bogie.m = np.array([1, 1]) * 5500.0  # kg (each bogie)
+    v.Bogie.I = np.array([1, 1]) * 8000.0
+    v.Bogie.L = np.array([1, 1]) * 2.5
+    v.Wheels.num = 4
+    v.Wheels.m = np.array([1, 1, 1, 1]) * 2000.0  # kg (each wheel, 17t/4 wheels ≈ 4.25t, but ~2t actual mass)
+    v.Susp.Prim.k = np.array([1, 1, 1, 1]) * 1200e3 * 2  # Primary suspension (wheel-bogie)
+    v.Susp.Prim.c = np.array([1, 1, 1, 1]) * 40e3 * 2
+    v.Susp.Sec.k = np.array([1, 1]) * 500e3 * 2  # Secondary suspension (bogie-body)
+    v.Susp.Sec.c = np.array([1, 1]) * 50e3 * 2
+    return _finalize_veh(v)
+
+
 def TrainProp_HSLM(train_name, num_coaches=None):
     """
     Router to create a list of vehicle namespaces. Supports HSLM-A1 to A10,
-    ChineseStar, ShinkansenS300, and Custom.
+    ChineseStar, ShinkansenS300, EMU, and Custom.
     """
-    if train_name == "ChineseStar":
-        n_c = num_coaches if num_coaches is not None else 8
+    if train_name == "EMU":
+        n_c = num_coaches if num_coaches is not None else 1
+        return [TrainProp_EMU() for _ in range(n_c)]
+    elif train_name == "ChineseStar":
+        n_c = num_coaches if num_coaches is not None else 1
         return [TrainProp_ChineseStarPowerCar() for _ in range(n_c)]
     elif train_name == "ShinkansenS300":
-        n_c = num_coaches if num_coaches is not None else 16
+        n_c = num_coaches if num_coaches is not None else 1
         return [TrainProp_ShinkansenS300() for _ in range(n_c)]
     elif train_name == "Custom":
-        n_c = num_coaches if num_coaches is not None else 10
+        n_c = num_coaches if num_coaches is not None else 1
         return [TrainProp_Custom() for _ in range(n_c)]
     elif train_name in HSLM_PARAMS:
         N, D, d, P = HSLM_PARAMS[train_name]

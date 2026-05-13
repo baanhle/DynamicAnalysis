@@ -176,18 +176,9 @@
 
             <div class="field-row">
               <label class="field-label" style="flex:1">
-                Loại đoàn tàu HSLM-A
+                Tàu tiêu chuẩn (Standard Train)
                 <select id="train_name" class="field-input" style="border-color: var(--accent-1); color: var(--accent-1); font-weight: 600;" onchange="App.onTrainChange(this.value)">
-                  <option value="A1">HSLM A1 — 18 toa, D=18m, P=170kN</option>
-                  <option value="A2">HSLM A2 — 17 toa, D=19m, P=200kN</option>
-                  <option value="A3">HSLM A3 — 16 toa, D=20m, P=180kN</option>
-                  <option value="A4">HSLM A4 — 15 toa, D=21m, P=190kN</option>
-                  <option value="A5">HSLM A5 — 14 toa, D=22m, P=170kN</option>
-                  <option value="A6">HSLM A6 — 13 toa, D=23m, P=180kN</option>
-                  <option value="A7">HSLM A7 — 13 toa, D=24m, P=190kN</option>
-                  <option value="A8">HSLM A8 — 12 toa, D=25m, P=190kN</option>
-                  <option value="A9">HSLM A9 — 11 toa, D=26m, P=210kN</option>
-                  <option value="A10">HSLM A10 — 11 toa, D=27m, P=210kN</option>
+                  <option value="EMU">🚄 EMU (CR400 AF/BF) — 250-350 km/h</option>
                   <option value="ChineseStar">🇨🇳 Chinese Star — Power Car (Zhai et al., 2009)</option>
                   <option value="ShinkansenS300">🇯🇵 Shinkansen S300 (Wu &amp; Yang, 2003)</option>
                   <option value="Custom">⚙️ Tự định nghĩa (Custom Setup)</option>
@@ -222,7 +213,7 @@
 
             <div style="margin-top:1.5rem; padding:1rem; background:rgba(0,212,255,0.06); border-radius:10px; border:1px solid rgba(0,212,255,0.2);">
               <p style="margin:0 0 0.5rem 0; font-size:0.8rem; color:var(--accent-2); text-transform:uppercase; letter-spacing:0.08em;">💡 EN 1991-2 HSLM-A</p>
-              <p style="margin:0; font-size:0.82rem; color:#aaa; line-height:1.5;">Mô hình tải trọng tàu tốc độ cao theo Eurocode. Mỗi loại A1–A10 có bố cục trục và tải trọng khác nhau để bao quát phổ cộng hưởng của cầu.</p>
+              <p style="margin:0; font-size:0.82rem; color:#aaa; line-height:1.5;">Chọn mô hình tàu tiêu chuẩn để phân tích động lực. Mỗi loại tàu có thông số kỹ thuật khác nhau phù hợp với đặc tính thiết kế thực tế.</p>
             </div>
           </div>
         </div>

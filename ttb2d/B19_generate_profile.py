@@ -95,9 +95,9 @@ def _calc_psd(Omega, psd_type):
     """Calculate PSD values for given spatial frequencies."""
     if isinstance(psd_type, str) and psd_type.startswith('FRA'):
         class_num = int(psd_type.split('_')[1]) if '_' in psd_type else 6
-        # FRA PSD (Av for vertical)
+        # FRA PSD (vertical alignment Av), SI units: m^2·rad/m (factor 1e-7 per TTCI/FRA report)
         kv = [0.2095, 0.4190, 0.8380, 1.6764, 3.3528, 6.7056]
-        Av = kv[min(class_num - 1, 5)]
+        Av = kv[min(class_num - 1, 5)] * 1e-7
         Oc = 0.8246
         Os = 0.4380
         S = Av * Oc ** 2 / ((Omega ** 2 + Oc ** 2) * (Omega ** 2 + Os ** 2))

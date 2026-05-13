@@ -91,7 +91,7 @@ def _make_calc(p: dict = None, fast_mode: bool = False) -> types.SimpleNamespace
         Calc.Options.beam_frq_factor = 2.5
         Calc.Options.veh_frq_factor  = 2.5
         Calc.Options.min_Nele        = 1.5
-        Calc.Options.tail_duration   = 2.0
+        Calc.Options.tail_duration   = 5.0
         Calc.Options.tail_dt         = 0.012
     else:
         Calc.Options.beam_frq_factor = 3.0
